@@ -746,6 +746,10 @@ const rate = t => t.wins + t.losses ? t.wins / (t.wins + t.losses) : 0;
 const ranking = () => [...traders].sort((a, b) => b.wins - a.wins || rate(b) - rate(a) || b.pnl - a.pnl);
 const teamPnl = () => traders.reduce((s, t) => s + t.pnl, 0);
 const stake = () => Math.min(10, Math.max(0.35, +$("#stake").value || 1));
+// Ajustes por trader (vazio = usa o da mesa)
+let perT = store.get("deriv-por-trader", {});
+const stakeOf = t => { const v = +(perT[t.id] && perT[t.id].stake); return v > 0 ? Math.min(10, Math.max(0.35, v)) : stake(); };
+const m1Of = t => { const v = perT[t.id] && perT[t.id].m1; return v === "sim" ? true : v === "nao" ? false : m1Only(); };
 const first = t => t.name.split(" ")[0];
 
 /* ---------- Conexão Deriv (API nova: api.derivws.com) ---------- */
@@ -936,28 +940,29 @@ function onCandleClose(t) {
   if (t.cooldown > 0) t.cooldown--;
   if (mode === "off" || !entriesOn || dayEnded || stopHit || t.open || t.cooldown > 0 || !t.ready || t.away) return;
   if (t.ops >= +$("#maxops").value) return;
-  if (m1Only() && (tfMin() !== 1 || t.dur !== 1)) {
+  if (m1Of(t) && (tfMin() !== 1 || t.dur !== 1)) {
     t.why = tfMin() !== 1 ? "Esperando: modo só M1 ligado, mude o tempo de vela para 1 min" : `Sem entrada: a Deriv não aceita operação de 1 min no ${t.asset} (mínimo ${t.dur} min)`;
     return;
   }
   const pick = choose(t, sig); if (!pick) return;
   if (mode === "demo" || mode === "real") placeDemo(t, pick.dir, c, pick.by);
-  else { t.open = { dir: pick.dir, by: pick.by, entry: c, left: t.expC, sim: true, at: hhmm() }; t.ops++; }
+  else { t.open = { dir: pick.dir, by: pick.by, entry: c, left: t.expC, sim: true, at: hhmm(), stake: stakeOf(t) }; t.ops++; }
 }
 
 function settleSim(t, exitP) {
   const o = t.open; t.open = null; t.cooldown = 1;
   if (exitP === o.entry) return record(t, o, exitP, 0, null, "Simulada");
   const win = o.dir === "up" ? exitP > o.entry : exitP < o.entry;
-  record(t, o, exitP, win ? stake() * SIM_PAYOUT : -stake(), win, "Simulada");
+  const amt = o.stake || stakeOf(t);
+  record(t, o, exitP, win ? amt * SIM_PAYOUT : -amt, win, "Simulada");
 }
 
 async function placeDemo(t, dir, ref, by) {
-  const amt = stake();
-  t.open = { dir, by, entry: ref, sending: true, at: hhmm() }; t.ops++;
+  const amt = stakeOf(t);
+  t.open = { dir, by, entry: ref, sending: true, at: hhmm(), stake: amt }; t.ops++;
   try {
     // tenta o prazo atual; se a Deriv disser que esse prazo não é oferecido, tenta os próximos prazos permitidos
-    const tries = m1Only() ? [1] : [t.dur, ...DUR_STEPS.filter(m => m > t.dur && m <= (t.durMax || 1440))].slice(0, 6);
+    const tries = m1Of(t) ? [1] : [t.dur, ...DUR_STEPS.filter(m => m > t.dur && m <= (t.durMax || 1440))].slice(0, 6);
     let p = null, lastErr = null;
     for (const m of tries) {
       try {
@@ -972,7 +977,7 @@ async function placeDemo(t, dir, ref, by) {
     }
     if (!p) { t.cooldown = 30; throw new Error((lastErr ? lastErr.message : "sem prazo") + `. Testei ${tries.join(", ")} min e nenhum foi aceito; ${first(t)} espera 30 velas e tenta de novo`); }
     const b = (await send({ buy: p.proposal.id, price: amt })).buy;
-    t.open = { dir, by, entry: ref, id: b.contract_id, cost: b.buy_price, at: hhmm(), expiry: Date.now() + t.dur * 60000 };
+    t.open = { dir, by, entry: ref, id: b.contract_id, cost: b.buy_price, stake: amt, at: hhmm(), expiry: Date.now() + t.dur * 60000 };
     send({ proposal_open_contract: 1, contract_id: b.contract_id, subscribe: 1 }).catch(() => {});
   } catch (e) {
     t.open = null; t.ops--; t.cooldown = Math.max(t.cooldown || 0, 3);
@@ -1000,7 +1005,7 @@ function record(t, o, exitP, result, win, kind) {
   t.flash = win === null ? "tie" : win ? "win" : "loss"; t.flashUntil = Date.now() + 4000; t.flashAmt = result;
   const el = document.getElementById("desk-" + t.id);
   if (el && win !== null) { el.classList.remove("flash-win", "flash-loss"); void el.offsetWidth; el.classList.add(win ? "flash-win" : "flash-loss"); }
-  addLogRow({ at: hhmm(), t, dir: o.dir, by: o.by, kind, entry: o.entry, exit: exitP, result, win });
+  addLogRow({ at: hhmm(), t, dir: o.dir, by: o.by, kind, entry: o.entry, exit: exitP, result, win, stake: o.stake || o.cost || stakeOf(t) });
   if (t.streak === 3 && win) say(`${first(t)} emendou 3 wins seguidos no ${t.asset}. É assim que se faz!`);
   if (t.streak === 5 && win) say(`${first(t)} está imparável: 5 seguidos usando ${o.by || modeName(t.strat)}!`);
   if (t.streak === -3 && win === false) say(`${first(t)}, três losses seguidos. Respira e não força entrada no ${t.asset}.`);
@@ -1133,7 +1138,7 @@ function updateDesks() {
     why.classList.toggle("go", /^Entrou/.test(why.textContent));
     const kn = knowledge(t); d.querySelector(".kbar i").style.width = kn + "%"; d.querySelector(".kp").textContent = kn + "%";
     d.querySelector(".px").textContent = t.live != null ? fmt(t.live, t.dec) : "—";
-    d.querySelector(".st").textContent = `${modeName(t.strat)} · M${tfMin()} · exp. ${t.dur} min`;
+    d.querySelector(".st").textContent = `${modeName(t.strat)} · ${m1Of(t) ? "só M1" : "M" + tfMin() + " · exp. " + t.dur + " min"} · ${fmt(stakeOf(t), 2)}`;
     const b = d.querySelector(".bubble");
     if (t.flash) { b.className = "bubble " + t.flash; b.textContent = t.flash === "tie" ? "EMPATE" : (t.flash === "win" ? "WIN " : "LOSS ") + money(t.flashAmt); }
     else if (t.open) {
@@ -1201,6 +1206,11 @@ function renderDetail() {
       ${Object.entries(fams).map(([f, ks]) => `<optgroup label="Só uma: ${f}">${ks.map(opt).join("")}</optgroup>`).join("")}</select></div>
     <p class="hint" id="strat-desc">${modeDesc(t.strat)}</p>
     <div class="row"><span>Vela / expiração</span><b>M${tfMin()} · ${t.dur} min</b></div>
+    <div class="row"><label for="t-m1" style="color:var(--muted)">Entrada só M1 (1 min)</label>
+      <select id="t-m1"><option value="">Igual à mesa (${m1Only() ? "sim" : "não"})</option><option value="sim">Sim, só 1 min</option><option value="nao">Não, prazo do ativo</option></select></div>
+    <div class="row"><label for="t-stake" style="color:var(--muted)">Valor por entrada (${account ? account.currency : "USD"})</label>
+      <input type="number" id="t-stake" min="0.35" max="10" step="0.05" placeholder="mesa: ${fmt(stake(), 2)}" style="max-width:130px"></div>
+    <p class="hint" style="margin:0">Deixe o valor vazio para usar o da mesa. Limite de 0,35 a 10 por entrada; o stop da mesa continua valendo.</p>
     <div class="row"><span>Operações no expediente</span><b id="d-ops"></b></div>
     <div class="row"><span>Sequência atual</span><b id="d-streak"></b></div>
     <div class="row"><span>Conhecimento do ativo</span><b id="d-know"></b></div>
@@ -1210,6 +1220,20 @@ function renderDetail() {
     <p class="hint" style="margin:0">Conhecimento = quanto gráfico já foi estudado + o melhor acerto encontrado no histórico. Mostra preparo, não garante resultado.</p>
     <span class="label" style="margin-top:6px">O que ${first(t)} aprendeu no ${t.asset}</span>
     <div class="log-wrap" style="max-height:280px"><table class="learn"><thead><tr><th>Estratégia</th><th>Geral</th><th>Cenário</th><th>Agora</th></tr></thead><tbody id="d-learn"></tbody></table></div>`;
+  const pt = perT[t.id] || {};
+  $("#t-m1").value = pt.m1 || ""; $("#t-stake").value = pt.stake || "";
+  const savePt = () => { perT[t.id] = { ...(perT[t.id] || {}) }; return perT[t.id]; };
+  $("#t-m1").addEventListener("change", e => {
+    savePt().m1 = e.target.value; store.set("deriv-por-trader", perT); t.why = null;
+    say(`${first(t)}: entrada só M1 ${e.target.value === "sim" ? "ligada" : e.target.value === "nao" ? "desligada" : "igual à da mesa"}.${m1Of(t) && t.dur !== 1 ? ` Atenção: ${t.asset} não aceita 1 min; a Marta vai trocar o ativo na próxima avaliação.` : ""}`);
+    if (m1Of(t) && t.dur !== 1) nextEval = Date.now() + 1000;
+    updateDesks();
+  });
+  $("#t-stake").addEventListener("change", e => {
+    let v = +e.target.value; if (v > 0) { v = Math.min(10, Math.max(0.35, v)); e.target.value = v; }
+    savePt().stake = v > 0 ? v : ""; store.set("deriv-por-trader", perT);
+    say(`${first(t)} agora entra com ${fmt(stakeOf(t), 2)} ${account ? account.currency : "USD"} por operação${v > 0 ? "" : " (valor da mesa)"}.`); updateDesks();
+  });
   $("#strat-sel").addEventListener("change", e => {
     t.strat = e.target.value; savedStrats[t.id] = t.strat; store.set("deriv-modos", savedStrats);
     $("#strat-desc").textContent = modeDesc(t.strat); say(`${first(t)} agora opera ${t.asset} no modo ${modeName(t.strat)}.`); updateDesks();
@@ -1238,7 +1262,7 @@ function updateDetail() {
   }).join("");
 }
 function addLogRow(e, restoring) {
-  if (!restoring) { logLog.unshift({ ...e, t: e.t.id, stake: stake() }); logLog.length = Math.min(logLog.length, 100); persist(); }
+  if (!restoring) { logLog.unshift({ ...e, t: e.t.id, stake: e.stake ?? stake() }); logLog.length = Math.min(logLog.length, 100); persist(); }
   if (typeof e.t === "string") e = { ...e, t: traders.find(x => x.id === e.t) || traders[0] };
   const tr = document.createElement("tr");
   const res = e.win === null ? "EMPATE " + money(e.result) : (e.win ? "WIN " : "LOSS ") + money(e.result);
@@ -1478,16 +1502,20 @@ async function runEvaluation(manual) {
     // 1) escolhe os melhores ativos abertos (quem já está na mesa ganha uma pequena vantagem para evitar troca à toa)
     const held = new Set(traders.map(t => t.symbol));
     const locked = traders.filter(t => t.open || t.away);
-    const avail = POOL.map(([s]) => market[mkey(s)]).filter(m => m && m.ok && m.open && (!m1Only() || m.minDur <= 1))
+    const avail = POOL.map(([s]) => market[mkey(s)]).filter(m => m && m.ok && m.open && (!traders.every(m1Of) || m.minDur <= 1))
       .map(m => ({ s: m.sym, v: m.score + (held.has(m.sym) ? 0.01 : 0) })).sort((a, b) => b.v - a.v);
     const chosen = new Set(locked.map(t => t.symbol));
+    const isM1 = sym => ((market[mkey(sym)] || {}).minDur || 99) <= 1;
+    // primeiro garante ativos de 1 min para quem está no modo só M1, depois completa com os melhores no geral
+    const needM1 = traders.filter(t => !locked.includes(t) && m1Of(t)).length;
+    for (const a of avail.filter(a => isM1(a.s)).slice(0, needM1)) chosen.add(a.s);
     for (const a of avail) { if (chosen.size >= traders.length) break; chosen.add(a.s); }
     if (chosen.size < traders.length) for (const t of traders) if (chosen.size < traders.length) chosen.add(t.symbol);
-    if (m1Only()) say(`Modo só M1: ${avail.length} ativo(s) aceitam operação de 1 min agora (${avail.map(a => POOL_NAME[a.s]).join(", ") || "nenhum"}).`);
+    if (traders.some(m1Of)) say(`Modo só M1: ${avail.length} ativo(s) aceitam operação de 1 min agora (${avail.map(a => POOL_NAME[a.s]).join(", ") || "nenhum"}).`);
     // 2) distribui: cada ativo vai para o trader que mais conhece ele (quem tem operação aberta fica onde está)
     const free = traders.filter(t => !locked.includes(t)), left = [...chosen].filter(s => !locked.some(t => t.symbol === s));
     const pairs = [];
-    for (const t of free) for (const s of left) pairs.push({ t, s, v: knowOf(t, s) + (t.symbol === s ? 3 : 0) });
+    for (const t of free) for (const s of left) if (!m1Of(t) || isM1(s)) pairs.push({ t, s, v: knowOf(t, s) + (t.symbol === s ? 3 : 0) });
     pairs.sort((a, b) => b.v - a.v);
     const plan = new Map(), used = new Set();
     for (const p of pairs) if (!plan.has(p.t) && !used.has(p.s)) { plan.set(p.t, p); used.add(p.s); }
@@ -1507,7 +1535,7 @@ async function runEvaluation(manual) {
   } catch (e) { say(`A avaliação da Marta parou no meio (${e.message}). Tento de novo mais tarde.`); }
   finally {
     evaluating = false; $("#eval-now").disabled = false; coach?.classList.remove("talking");
-    nextEval = Date.now() + EVAL_EVERY; renderEval(); renderAll();
+    nextEval = Date.now() + (traders.some(t => m1Of(t) && t.dur !== 1) ? 5 * 60000 : EVAL_EVERY); renderEval(); renderAll();
   }
 }
 
