@@ -875,22 +875,25 @@ async function start(token) {
   } finally { $("#connect-btn").disabled = $("#sim-btn").disabled = false; renderAll(); }
 }
 
-function pickDuration(list) {
-  // procura Sobe/Desce (CALL) intradiário e escolhe 5 min ou o mínimo permitido
+function pickRange(list) {
+  // Sobe/Desce (CALL) que começa AGORA (não os de início futuro, que aceitam prazos diferentes), intradiário
   const toMin = s => { const m = /^(\d+)([tsmhd])$/.exec(s || ""); if (!m) return null; const n = +m[1]; return { s: n / 60, m: n, h: n * 60, d: n * 1440, t: null }[m[2]]; };
-  const c = list.filter(x => x.contract_type === "CALL" && x.barrier_category === "euro_atm" && x.expiry_type === "intraday")
+  const c = list.filter(x => x.contract_type === "CALL" && x.barrier_category === "euro_atm" && x.expiry_type === "intraday" && (!x.start_type || x.start_type === "spot"))
                 .map(x => ({ min: toMin(x.min_contract_duration), max: toMin(x.max_contract_duration) })).filter(x => x.min != null);
   if (!c.length) return null;
-  return Math.max(1, Math.ceil(Math.min(...c.map(x => x.min))));
+  return { min: Math.max(1, Math.ceil(Math.min(...c.map(x => x.min)))), max: Math.max(...c.map(x => x.max || 1440)) };
 }
+const pickDuration = list => { const r = pickRange(list); return r ? r.min : null; };
+let durCache = store.get("deriv-dur", {}); // prazo que a Deriv aceitou de verdade, por ativo e vela
+const DUR_STEPS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 240, 480, 1440];
 async function loadTrader(t, info) {
   t.ready = false; t.isOpen = info ? !!info.exchange_is_open : false;
   const pip = info && (info.pip_size ?? info.pip); if (pip) t.dec = Math.max(0, Math.round(-Math.log10(pip)));
   try {
     const cf = await send({ contracts_for: t.symbol, currency: account ? account.currency : "USD" });
-    t.minDur = pickDuration(cf.contracts_for.available) || 1;
-  } catch (e) { t.minDur = 1; }
-  t.dur = Math.max(t.minDur, tfMin()); t.expC = Math.max(1, Math.ceil(t.dur / tfMin()));
+    const r = pickRange(cf.contracts_for.available); t.minDur = r ? r.min : 1; t.durMax = r ? r.max : 1440;
+  } catch (e) { t.minDur = 1; t.durMax = 1440; }
+  t.dur = Math.max(t.minDur, tfMin(), durCache[t.symbol + "|" + tfMin()] || 0); t.expC = Math.max(1, Math.ceil(t.dur / tfMin()));
   try {
     const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 1000, end: "latest", subscribe: 1 }, t);
     const cs = h.candles || [];
@@ -946,13 +949,26 @@ async function placeDemo(t, dir, ref, by) {
   const amt = stake();
   t.open = { dir, by, entry: ref, sending: true, at: hhmm() }; t.ops++;
   try {
-    const p = await send({ proposal: 1, amount: amt, basis: "stake", contract_type: dir === "up" ? "CALL" : "PUT",
-      currency: account.currency, duration: t.dur, duration_unit: "m", underlying_symbol: t.symbol });
+    // tenta o prazo atual; se a Deriv disser que esse prazo não é oferecido, tenta os próximos prazos permitidos
+    const tries = [t.dur, ...DUR_STEPS.filter(m => m > t.dur && m <= (t.durMax || 1440))].slice(0, 6);
+    let p = null, lastErr = null;
+    for (const m of tries) {
+      try {
+        p = await send({ proposal: 1, amount: amt, basis: "stake", contract_type: dir === "up" ? "CALL" : "PUT", currency: account.currency,
+          duration: m % 1440 === 0 ? m / 1440 : m, duration_unit: m % 1440 === 0 ? "d" : "m", underlying_symbol: t.symbol });
+        if (m !== t.dur) {
+          say(`${first(t)}: a Deriv não aceita ${t.dur} min no ${t.asset} agora. Passei a usar ${m} min.`);
+          t.dur = m; t.expC = Math.max(1, Math.ceil(m / tfMin())); durCache[t.symbol + "|" + tfMin()] = m; store.set("deriv-dur", durCache);
+        }
+        break;
+      } catch (e) { lastErr = e; if (!/duration|prazo|dura/i.test(e.message)) throw e; }
+    }
+    if (!p) { t.cooldown = 30; throw new Error((lastErr ? lastErr.message : "sem prazo") + `. Testei ${tries.join(", ")} min e nenhum foi aceito; ${first(t)} espera 30 velas e tenta de novo`); }
     const b = (await send({ buy: p.proposal.id, price: amt })).buy;
     t.open = { dir, by, entry: ref, id: b.contract_id, cost: b.buy_price, at: hhmm(), expiry: Date.now() + t.dur * 60000 };
     send({ proposal_open_contract: 1, contract_id: b.contract_id, subscribe: 1 }).catch(() => {});
   } catch (e) {
-    t.open = null; t.ops--; t.cooldown = 3;
+    t.open = null; t.ops--; t.cooldown = Math.max(t.cooldown || 0, 3);
     say(`${first(t)} tentou entrar em ${t.asset} e a Deriv recusou: ${e.message}`);
   }
   scheduleRender();
