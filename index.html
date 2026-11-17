@@ -127,7 +127,7 @@ td .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; ma
 
 /* Livro de operações */
 .log-wrap { overflow-x: auto; max-height: 280px; overflow-y: auto; }
-.log { min-width: 620px; font-family: var(--f-mono); font-size: 12px; }
+.log { min-width: 860px; font-family: var(--f-mono); font-size: 12px; }
 .log td, .log th { text-align: left; }
 .log td.res-tie { color: var(--muted); }
 .log td.res-win { color: var(--up); font-weight: 600; } .log td.res-loss { color: var(--down); font-weight: 600; }
@@ -166,7 +166,18 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .err { color: var(--down); font-size: 13px; margin: 0; }
 .steps { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
 .steps a { color: var(--accent); }
+button.danger { background: var(--down); border-color: var(--down); color: #2a0707; font-weight: 600; }
+.realbox { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--down); border-radius: 10px; background: color-mix(in srgb, var(--down) 10%, transparent); font-size: 13px; }
+.realbox b { color: var(--down); }
+.pill.real { color: #2a0707; background: var(--down); }
+.hist td.pos { color: var(--up); } .hist td.neg { color: var(--down); }
+.hist tr.sub td { color: var(--muted); font-size: 11px; border-bottom-style: dashed; }
+#confirm-clear { color: var(--down); }
 .bubble.tie, .bubble.closed { background: var(--line); color: var(--muted); }
+.learn { font-size: 12px; }
+.learn td, .learn th { text-align: right; vertical-align: top; }
+.learn td:first-child, .learn th:first-child { text-align: left; width: auto; color: var(--ink); font-family: var(--f-body); }
+.learn .dir-up { color: var(--up); } .learn .dir-down { color: var(--down); }
 .log td.res-tie { color: var(--muted); }
 </style>
 
@@ -178,13 +189,14 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
       <div class="logo" aria-hidden="true">AT</div>
       <div>
         <h1>Agência de Traders · Deriv</h1>
-        <div class="sub">Cada trader opera um ativo da Deriv com contratos Sobe/Desce. Sem token, as operações são simuladas sobre preços ao vivo; com token de conta demo, as ordens vão para a Deriv.</div>
+        <div class="sub">Cada trader opera um ativo da Deriv com contratos Sobe/Desce. Sem token, as operações são simuladas sobre preços ao vivo; com token, as ordens vão para a conta escolhida na Deriv (demo por padrão).</div>
       </div>
     </div>
     <div class="controls">
       <div class="clock">Expediente <b id="day">1</b> · <b id="clock">--:--</b></div>
       <span class="pill" id="mode-pill">Desconectado</span>
       <button id="play" class="primary">Pausar entradas</button>
+      <button id="stopall" class="danger" type="button">Parar tudo</button>
       <button id="reset">Novo expediente</button>
     </div>
   </header>
@@ -201,11 +213,21 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
         <div class="field"><label for="stake">Valor por operação (USD)</label><input type="number" id="stake" min="0.35" max="10" step="0.05" value="1"></div>
         <div class="field"><label for="maxops">Máx. operações por trader</label><input type="number" id="maxops" min="1" max="50" step="1" value="10"></div>
         <div class="field"><label for="stoploss">Stop da mesa (USD)</label><input type="number" id="stoploss" min="1" max="500" step="1" value="15"></div>
+        <div class="field"><label for="tf">Tempo de vela</label><select id="tf"><option value="1">1 min (M1)</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min (M5)</option><option value="15">15 min (M15)</option></select></div>
         <div class="field"><label for="daylen">Expediente (min)</label><input type="number" id="daylen" min="10" max="480" step="5" value="60"></div>
       </div>
       <div class="inline">
         <label class="check"><input type="checkbox" id="remember"> Lembrar o token neste navegador</label>
         <div class="field" style="flex:1 1 200px"><label for="appid">App ID do seu aplicativo (tipo PAT)</label><input type="text" id="appid" placeholder="ex.: 12345"></div>
+      </div>
+      <div class="inline">
+        <div class="field" style="flex:0 1 230px"><label for="acct-type">Conta</label><select id="acct-type"><option value="demo">Demo (dinheiro fictício)</option><option value="real">Real (dinheiro de verdade)</option></select></div>
+      </div>
+      <div class="realbox" id="real-box" hidden>
+        <b>Conta real: os traders vão comprar contratos com o seu dinheiro.</b>
+        <span>Opções binárias são de alto risco e a maior parte de quem opera perde dinheiro. Nenhuma das estratégias garante lucro, e resultados da conta demo não se repetem necessariamente na real. Os limites abaixo continuam valendo: valor por operação, operações por trader e stop da mesa.</span>
+        <label class="check"><input type="checkbox" id="real-ok"> Entendo os riscos e quero operar com dinheiro real</label>
+        <div class="field" style="max-width:240px"><label for="real-word">Digite REAL para liberar</label><input type="text" id="real-word" autocomplete="off"></div>
       </div>
       <div class="inline">
         <button class="primary" type="submit" id="connect-btn">Conectar conta demo</button>
@@ -222,7 +244,7 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
       <ol class="steps">
         <li>Em <a href="https://developers.deriv.com" target="_blank" rel="noopener">developers.deriv.com</a>, entre com sua conta e registre um aplicativo do tipo <b>PAT</b>. Copie o <b>App ID</b> dele.</li>
         <li>Crie o token (PAT) com permissão de negociar (trade).</li>
-        <li>Cole o token e o App ID aqui e clique em Conectar. A página só usa a conta demo.</li>
+        <li>Cole o token e o App ID, escolha a conta (comece pela demo) e clique em Conectar.</li>
       </ol>
     </div>
   </section>
@@ -263,13 +285,26 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     <h2>Livro de operações</h2>
     <div class="log-wrap">
       <table class="log">
-        <thead><tr><th>Hora</th><th>Trader</th><th>Ativo</th><th>Direção</th><th>Tipo</th><th>Entrada</th><th>Saída</th><th>Valor</th><th>Resultado</th></tr></thead>
+        <thead><tr><th>Hora</th><th>Trader</th><th>Ativo</th><th>Direção</th><th>Estratégia</th><th>Tipo</th><th>Entrada</th><th>Saída</th><th>Valor</th><th>Resultado</th></tr></thead>
         <tbody id="log"></tbody>
       </table>
     </div>
   </section>
 
-  <footer>Ferramenta de estudo. Opções binárias têm alto risco e não são autorizadas pela CVM no Brasil. Esta página só aceita contas demo da Deriv e tem limite de valor por operação, de operações por trader e stop da mesa. O token fica apenas neste navegador e é enviado só para a Deriv.</footer>
+  <section class="panel">
+    <h2>Histórico de expedientes
+      <span class="controls"><button type="button" id="save-day">Salvar dia agora</button><button type="button" id="csv-day">Baixar planilha (CSV)</button><button type="button" id="clear-hist">Limpar histórico</button></span>
+    </h2>
+    <p class="hint" id="hist-note">Cada expediente é salvo sozinho quando termina. Use “Salvar dia agora” para registrar antes do fim. Fica guardado neste navegador.</p>
+    <div class="log-wrap" style="max-height:360px">
+      <table class="log hist">
+        <thead><tr><th>Data</th><th>Exp.</th><th>Conta</th><th>Vela</th><th>Wins</th><th>Loss</th><th>Taxa</th><th>Ganho</th><th>Perdido</th><th>Resultado</th><th>Melhor trader</th></tr></thead>
+        <tbody id="hist"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Ferramenta de estudo. Opções binárias têm alto risco e não são autorizadas pela CVM no Brasil. A conta demo é o padrão; a conta real só é liberada com confirmação, e os limites de valor por operação, de operações por trader e o stop da mesa valem nas duas. O token fica apenas neste navegador e é enviado só para a Deriv.</footer>
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -284,13 +319,56 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 <script>
 (() => {
 const HIST = 90, SIM_PAYOUT = 0.9;
+/* ---------- Biblioteca de estratégias ---------- */
+const ema = (a, n) => { const k = 2 / (n + 1), o = [a[0]]; for (let i = 1; i < a.length; i++) o.push(a[i] * k + o[i - 1] * (1 - k)); return o; };
+const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))) || 1e-12; };
+function stoch(p, n = 14) { const w = p.slice(-n), hi = Math.max(...w), lo = Math.min(...w); return hi === lo ? 50 : (p[p.length - 1] - lo) / (hi - lo) * 100; }
+function cci(p, n = 20) { const w = p.slice(-n), m = avg(w), md = avg(w.map(x => Math.abs(x - m))) || 1e-12; return (p[p.length - 1] - m) / (0.015 * md); }
+const colors = (p, n) => { const c = []; for (let i = p.length - n; i < p.length; i++) c.push(p[i] > p[i - 1] ? 1 : p[i] < p[i - 1] ? -1 : 0); return c; };
+
 const STRATS = {
-  momentum:  { name: "Tendência", desc: "Segue o preço: acima da média de 10 e com a média subindo, compra; o contrário, vende." },
-  reversao:  { name: "Reversão à média", desc: "Longe demais da média de 20 velas, entra contra o movimento." },
-  rsi:       { name: "IFR (RSI)", desc: "IFR de 14 velas abaixo de 30 compra, acima de 70 vende. Fora disso espera." },
-  rompimento:{ name: "Rompimento", desc: "Entra quando o fechamento rompe a máxima ou a mínima das últimas 20 velas." },
-  intuicao:  { name: "Intuição", desc: "Cara ou coroa a cada vela. Serve de referência para as outras." },
+  momentum:   { fam: "Tendência", name: "Médias móveis", desc: "Preço acima da média de 10 e média de 10 acima da de 25: compra. O contrário: vende.",
+    fn: p => { const l = p[p.length - 1], s = avg(p.slice(-10)), s2 = avg(p.slice(-25)); return l > s && s > s2 ? "up" : l < s && s < s2 ? "down" : null; } },
+  ema_cross:  { fam: "Tendência", name: "Cruzamento EMA 9/21", desc: "Entra no sentido do cruzamento da EMA rápida (9) sobre a lenta (21), na vela em que ele acontece.",
+    fn: p => { const s = p.slice(-80), a = ema(s, 9), b = ema(s, 21), n = s.length - 1; return a[n] > b[n] && a[n - 1] <= b[n - 1] ? "up" : a[n] < b[n] && a[n - 1] >= b[n - 1] ? "down" : null; } },
+  macd:       { fam: "Tendência", name: "MACD (12, 26, 9)", desc: "Quando o histograma do MACD troca de sinal: para cima compra, para baixo vende.",
+    fn: p => { const s = p.slice(-120), e1 = ema(s, 12), e2 = ema(s, 26), m = e1.map((x, i) => x - e2[i]), g = ema(m, 9), n = m.length - 1, h = m[n] - g[n], h1 = m[n - 1] - g[n - 1]; return h > 0 && h1 <= 0 ? "up" : h < 0 && h1 >= 0 ? "down" : null; } },
+  pullback:   { fam: "Tendência", name: "Pullback na EMA 21", desc: "Em tendência (EMA 21 acima da 50), espera o preço voltar até a EMA 21 e entra quando ele retoma o sentido.",
+    fn: p => { const s = p.slice(-120), a = ema(s, 21), b = ema(s, 50), n = s.length - 1; if (a[n] > b[n] && s[n - 1] <= a[n - 1] && s[n] > a[n]) return "up"; if (a[n] < b[n] && s[n - 1] >= a[n - 1] && s[n] < a[n]) return "down"; return null; } },
+  rompimento: { fam: "Tendência", name: "Rompimento (Donchian 20)", desc: "Fechamento acima da máxima das últimas 20 velas compra; abaixo da mínima vende.",
+    fn: p => { const l = p[p.length - 1], w = p.slice(-21, -1); return l > Math.max(...w) ? "up" : l < Math.min(...w) ? "down" : null; } },
+  reversao:   { fam: "Reversão", name: "Reversão à média", desc: "Preço a mais de 1,6 desvio da média de 20 velas: entra contra o movimento.",
+    fn: p => { const w = p.slice(-20), z = (p[p.length - 1] - avg(w)) / sd(w); return z > 1.6 ? "down" : z < -1.6 ? "up" : null; } },
+  bollinger:  { fam: "Reversão", name: "Bandas de Bollinger", desc: "Vela anterior fechou fora da banda (20, 2) e a atual voltou para dentro: entra na volta.",
+    fn: p => { const w1 = p.slice(-21, -1), m1 = avg(w1), d1 = sd(w1), w = p.slice(-20), m = avg(w), d = sd(w), a = p[p.length - 2], l = p[p.length - 1];
+      if (a < m1 - 2 * d1 && l > m - 2 * d) return "up"; if (a > m1 + 2 * d1 && l < m + 2 * d) return "down"; return null; } },
+  rsi:        { fam: "Osciladores", name: "IFR (RSI 14)", desc: "IFR sai da zona de sobrevenda (30) compra; sai da sobrecompra (70) vende.",
+    fn: p => { const r = rsi(p), r1 = rsi(p.slice(0, -1)); return r1 < 30 && r >= 30 ? "up" : r1 > 70 && r <= 70 ? "down" : null; } },
+  estocastico:{ fam: "Osciladores", name: "Estocástico (14)", desc: "%K sai de baixo de 20 compra; sai de cima de 80 vende.",
+    fn: p => { const k = stoch(p), k1 = stoch(p.slice(0, -1)); return k1 < 20 && k >= 20 ? "up" : k1 > 80 && k <= 80 ? "down" : null; } },
+  cci:        { fam: "Osciladores", name: "CCI (20)", desc: "CCI volta de baixo de −100 compra; volta de cima de +100 vende.",
+    fn: p => { const c = cci(p), c1 = cci(p.slice(0, -1)); return c1 < -100 && c >= -100 ? "up" : c1 > 100 && c <= 100 ? "down" : null; } },
+  sr:         { fam: "Price action", name: "Suporte e resistência", desc: "Perto da mínima das últimas 50 velas e virando para cima compra; perto da máxima e virando para baixo vende.",
+    fn: p => { const w = p.slice(-50), hi = Math.max(...w), lo = Math.min(...w), r = hi - lo, l = p[p.length - 1], a = p[p.length - 2]; if (!r) return null; if (l - lo < r * 0.1 && l > a) return "up"; if (hi - l < r * 0.1 && l < a) return "down"; return null; } },
+  tres_velas: { fam: "Price action", name: "Três velas seguidas", desc: "Três velas na mesma direção: entra a favor (continuação).",
+    fn: p => { const c = colors(p, 3); return c.every(x => x === 1) ? "up" : c.every(x => x === -1) ? "down" : null; } },
+  mhi:        { fam: "Price action", name: "MHI (minoria de 3)", desc: "Olha a cor das 3 últimas velas e entra na cor que apareceu menos.",
+    fn: p => { const c = colors(p, 3); if (c.includes(0)) return null; const s = c.reduce((a, b) => a + b, 0); return s > 0 ? "down" : "up"; } },
+  engolfo:    { fam: "Price action", name: "Engolfo", desc: "Vela atual reverte a anterior com um movimento maior: entra no sentido da vela que engolfou.",
+    fn: p => { const n = p.length - 1, a = p[n - 1] - p[n - 2], b = p[n] - p[n - 1]; if (a < 0 && b > 0 && b > -a * 1.5) return "up"; if (a > 0 && b < 0 && -b > a * 1.5) return "down"; return null; } },
+  intuicao:   { fam: "Referência", name: "Intuição", desc: "Cara ou coroa a cada vela. Serve só de comparação; não entra no aprendizado.", ref: true,
+    fn: () => Math.random() < 0.5 ? "up" : "down" },
 };
+const LEARN = Object.keys(STRATS).filter(k => !STRATS[k].ref);
+const MODES = {
+  adaptativo: { name: "Adaptativa", desc: "Conhece todas as estratégias, estuda o histórico do próprio ativo e só entra com a que mais está acertando nele (mín. 55% em 6 ou mais sinais)." },
+  votacao:    { name: "Votação", desc: "Consulta todas as estratégias a cada vela e só entra quando 3 ou mais concordam e nenhuma discorda." },
+};
+const modeName = k => MODES[k] ? MODES[k].name : STRATS[k].name;
+const modeDesc = k => MODES[k] ? MODES[k].desc : STRATS[k].desc;
+const TFS = [1, 2, 3, 5, 15];
+const tfMin = () => { const v = +$("#tf").value; return TFS.includes(v) ? v : 1; };
+
 const TRADERS = [
   { id: "ana",    name: "Ana Ribeiro",   ini: "AR", color: "#7aa7ff", asset: "EUR/USD",  symbol: "frxEURUSD", strat: "momentum" },
   { id: "bruno",  name: "Bruno Takeda",  ini: "BT", color: "#c49bff", asset: "GBP/JPY",  symbol: "frxGBPJPY", strat: "reversao" },
@@ -311,26 +389,48 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
 let trophies = store.get("deriv-trofeus", {});
-const savedStrats = store.get("deriv-estrategias", {});
+const savedStrats = store.get("deriv-modos", {});
 
 /* ---------- Estado ---------- */
 let mode = "off"; // off | sim | demo
 let account = null, entriesOn = true, dayEnded = false, stopHit = false;
 let day = { n: 1, start: Date.now() };
 let selected = "ana", lastLeader = null;
-const traders = TRADERS.map(t => ({ ...t, strat: savedStrats[t.id] || t.strat, closes: [], times: [], live: null, curOpen: 0,
+const traders = TRADERS.map(t => ({ ...t, strat: (MODES[savedStrats[t.id]] || STRATS[savedStrats[t.id]]) ? savedStrats[t.id] : "adaptativo", stats: {}, shadow: [], lastSig: {}, minDur: 1, expC: 1, closes: [], times: [], live: null, curOpen: 0,
   dec: 4, dur: 5, isOpen: true, ready: false, wins: 0, losses: 0, pnl: 0, streak: 0, ops: 0, open: null, cooldown: 1, flash: null, flashUntil: 0 }));
 const bySymbol = Object.fromEntries(traders.map(t => [t.symbol, t]));
 
 function rsi(p, n = 14) { let g = 0, l = 0; for (let i = p.length - n; i < p.length; i++) { const d = p[i] - p[i - 1]; if (d > 0) g += d; else l -= d; } return l === 0 ? 100 : 100 - 100 / (1 + g / l); }
-function decide(strat, p) {
-  if (p.length < 30) return null;
+/* ---------- Aprendizado ---------- */
+function signals(p) { const o = {}; if (p.length < 60) return o; for (const k of LEARN) { const d = STRATS[k].fn(p); if (d) o[k] = d; } return o; }
+function learnStep(t, p) {
   const last = p[p.length - 1];
-  if (strat === "momentum") { const s = avg(p.slice(-10)), s2 = avg(p.slice(-25)); return last > s && s > s2 ? "up" : last < s && s < s2 ? "down" : null; }
-  if (strat === "reversao") { const w = p.slice(-20), m = avg(w); const sd = Math.sqrt(avg(w.map(x => (x - m) ** 2))) || 1e-12; const z = (last - m) / sd; return z > 1.6 ? "down" : z < -1.6 ? "up" : null; }
-  if (strat === "rsi") { const r = rsi(p); return r < 30 ? "up" : r > 70 ? "down" : null; }
-  if (strat === "rompimento") { const w = p.slice(-21, -1); return last > Math.max(...w) ? "up" : last < Math.min(...w) ? "down" : null; }
-  return Math.random() < 0.5 ? "up" : "down";
+  t.shadow = t.shadow.filter(s => {
+    if (--s.left > 0) return true;
+    if (last !== s.entry) { const st = t.stats[s.k] || (t.stats[s.k] = { w: 0, l: 0 }); ((s.dir === "up") === (last > s.entry)) ? st.w++ : st.l++; }
+    return false;
+  });
+  const sig = signals(p);
+  for (const k in sig) t.shadow.push({ k, dir: sig[k], entry: last, left: t.expC });
+  t.lastSig = sig;
+  return sig;
+}
+const hit = st => st ? (st.w + 1) / (st.w + st.l + 2) : 0.5;
+function study(t) { t.stats = {}; t.shadow = []; for (let i = 60; i <= t.closes.length; i++) learnStep(t, t.closes.slice(0, i)); }
+function choose(t, sig) {
+  if (t.strat === "votacao") {
+    const v = Object.values(sig), up = v.filter(d => d === "up").length, dn = v.length - up;
+    if (up >= 3 && dn === 0) return { dir: "up", by: `Votação ${up}×0` };
+    if (dn >= 3 && up === 0) return { dir: "down", by: `Votação ${dn}×0` };
+    return null;
+  }
+  if (t.strat === "adaptativo") {
+    let best = null;
+    for (const k in sig) { const st = t.stats[k]; if (!st || st.w + st.l < 6) continue; const h = hit(st); if (h >= 0.55 && (!best || h > best.h)) best = { k, h }; }
+    return best ? { dir: sig[best.k], by: `${STRATS[best.k].name} (${Math.round(best.h * 100)}%)` } : null;
+  }
+  const d = STRATS[t.strat].ref ? STRATS[t.strat].fn(t.closes) : sig[t.strat];
+  return d ? { dir: d, by: STRATS[t.strat].name } : null;
 }
 const rate = t => t.wins + t.losses ? t.wins / (t.wins + t.losses) : 0;
 const ranking = () => [...traders].sort((a, b) => b.wins - a.wins || rate(b) - rate(a) || b.pnl - a.pnl);
@@ -340,6 +440,7 @@ const first = t => t.name.split(" ")[0];
 
 /* ---------- Conexão Deriv (API nova: api.derivws.com) ---------- */
 const API = "https://api.derivws.com", WS_PUBLIC = "wss://api.derivws.com/trading/v1/options/ws/public";
+let lastKey = null;
 let ws = null, reqId = 0, pending = new Map(), streams = new Map(), pingTimer = null;
 function status(msg) { const el = $("#conn-status"); el.textContent = msg || ""; el.hidden = !msg; }
 function connect(url) {
@@ -401,14 +502,17 @@ async function start(token) {
       const headers = { Authorization: "Bearer " + token, "Deriv-App-ID": appId };
       status("Buscando suas contas na Deriv…");
       const accs = (await api("GET", "/trading/v1/options/accounts", headers)).data || [];
-      const demo = accs.find(a => a.account_type === "demo" && a.status !== "inactive");
-      if (!demo) throw new Error(accs.length ? "Esse token não tem conta demo ativa. Por segurança este escritório só opera na demo." : "A Deriv não devolveu nenhuma conta para esse token.");
-      status("Abrindo a conexão da conta demo " + demo.account_id + "…");
-      const otp = await api("POST", "/trading/v1/options/accounts/" + encodeURIComponent(demo.account_id) + "/otp", headers);
+      const want = $("#acct-type").value === "real" ? "real" : "demo";
+      if (want === "real" && !($("#real-ok").checked && $("#real-word").value.trim().toUpperCase() === "REAL"))
+        throw new Error("Para usar a conta real, marque que entende os riscos e digite REAL no campo de confirmação.");
+      const acc = accs.find(a => a.account_type === want && a.status !== "inactive");
+      if (!acc) throw new Error(accs.length ? `Esse token não tem conta ${want} ativa.` : "A Deriv não devolveu nenhuma conta para esse token.");
+      status(`Abrindo a conexão da conta ${want} ${acc.account_id}…`);
+      const otp = await api("POST", "/trading/v1/options/accounts/" + encodeURIComponent(acc.account_id) + "/otp", headers);
       const url = otp && otp.data && otp.data.url;
-      if (!url || !/\/ws\/demo/.test(url)) throw new Error("A Deriv não devolveu um endereço de conta demo. Por segurança não conectei.");
+      if (!url || !new RegExp("/ws/" + want).test(url)) throw new Error(`A Deriv não devolveu um endereço de conta ${want}. Por segurança não conectei.`);
       await connect(url);
-      account = { id: demo.account_id, currency: demo.currency || "USD", balance: demo.balance };
+      account = { id: acc.account_id, currency: acc.currency || "USD", balance: acc.balance, real: want === "real" };
       if ($("#remember").checked) { store.set("deriv-token", token); store.set("deriv-appid", appId); } else { store.del("deriv-token"); }
       send({ balance: 1, subscribe: 1 }).catch(() => {});
     } else {
@@ -420,9 +524,12 @@ async function start(token) {
     const syms = (await send({ active_symbols: "brief" })).active_symbols || [];
     const info = Object.fromEntries(syms.map(s => [s.underlying_symbol || s.symbol, s]));
     await Promise.all(traders.map(t => loadTrader(t, info[t.symbol])));
-    setMode(account ? "demo" : "sim"); status("");
+    const key = account ? account.id : "sim";
+    if (lastKey && key !== lastKey && traders.some(t => t.wins + t.losses)) { saveDay(true); newDay(day.n + 1); }
+    lastKey = key;
+    setMode(account ? (account.real ? "real" : "demo") : "sim"); status("");
     say(account
-      ? `Conectados na conta demo ${account.id}. Cada um opera ${fmt(stake(), 2)} ${account.currency} por entrada, no máximo ${$("#maxops").value} operações. Boa caça aos wins!`
+      ? `Conectados na conta ${account.real ? "REAL" : "demo"} ${account.id}. Cada um opera ${fmt(stake(), 2)} ${account.currency} por entrada, no máximo ${$("#maxops").value} operações. Boa caça aos wins!`
       : "Preços ao vivo da Deriv chegando. Por enquanto é treino: operações simuladas, sem ordem na corretora.");
   } catch (e) {
     status(""); disconnect(); $("#conn-err").textContent = e.message; $("#conn-err").hidden = false;
@@ -435,27 +542,27 @@ function pickDuration(list) {
   const c = list.filter(x => x.contract_type === "CALL" && x.barrier_category === "euro_atm" && x.expiry_type === "intraday")
                 .map(x => ({ min: toMin(x.min_contract_duration), max: toMin(x.max_contract_duration) })).filter(x => x.min != null);
   if (!c.length) return null;
-  const lo = Math.max(1, Math.ceil(Math.min(...c.map(x => x.min))));
-  return Math.max(5, lo);
+  return Math.max(1, Math.ceil(Math.min(...c.map(x => x.min))));
 }
 async function loadTrader(t, info) {
   t.ready = false; t.isOpen = info ? !!info.exchange_is_open : false;
   const pip = info && (info.pip_size ?? info.pip); if (pip) t.dec = Math.max(0, Math.round(-Math.log10(pip)));
   try {
     const cf = await send({ contracts_for: t.symbol, currency: account ? account.currency : "USD" });
-    t.dur = pickDuration(cf.contracts_for.available) || 5;
-  } catch (e) { t.dur = 5; }
+    t.minDur = pickDuration(cf.contracts_for.available) || 1;
+  } catch (e) { t.minDur = 1; }
+  t.dur = Math.max(t.minDur, tfMin()); t.expC = Math.max(1, Math.ceil(t.dur / tfMin()));
   try {
-    const h = await send({ ticks_history: t.symbol, style: "candles", granularity: 60, count: 150, end: "latest", subscribe: 1 }, t);
+    const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 300, end: "latest", subscribe: 1 }, t);
     const cs = h.candles || [];
     t.closes = cs.slice(0, -1).map(c => +c.close); t.times = cs.slice(0, -1).map(c => c.epoch);
     const last = cs[cs.length - 1]; t.live = last ? +last.close : null; t.curOpen = last ? last.epoch : 0;
-    t.ready = true;
+    study(t); t.ready = true;
   } catch (e) { t.note = e.message; }
 }
 
 function onOhlc(t, o) {
-  const ot = o.open_time != null ? +o.open_time : Math.floor(+o.epoch / 60) * 60;
+  const g = tfMin() * 60, ot = o.open_time != null ? +o.open_time : Math.floor(+o.epoch / g) * g;
   if (t.curOpen && ot > t.curOpen && t.live != null) {
     t.closes.push(t.live); t.times.push(t.curOpen);
     if (t.closes.length > 400) { t.closes.shift(); t.times.shift(); }
@@ -469,12 +576,14 @@ function onOhlc(t, o) {
 function onCandleClose(t) {
   const c = t.closes[t.closes.length - 1];
   if (t.open && t.open.sim && --t.open.left <= 0) settleSim(t, c);
+  const sig = learnStep(t, t.closes);
+  if (t.id === selected) updateDetail();
   if (t.cooldown > 0) t.cooldown--;
   if (mode === "off" || !entriesOn || dayEnded || stopHit || t.open || t.cooldown > 0 || !t.ready) return;
   if (t.ops >= +$("#maxops").value) return;
-  const dir = decide(t.strat, t.closes); if (!dir) return;
-  if (mode === "demo") placeDemo(t, dir, c);
-  else { t.open = { dir, entry: c, left: t.dur, sim: true, at: hhmm() }; t.ops++; }
+  const pick = choose(t, sig); if (!pick) return;
+  if (mode === "demo" || mode === "real") placeDemo(t, pick.dir, c, pick.by);
+  else { t.open = { dir: pick.dir, by: pick.by, entry: c, left: t.expC, sim: true, at: hhmm() }; t.ops++; }
 }
 
 function settleSim(t, exitP) {
@@ -484,14 +593,14 @@ function settleSim(t, exitP) {
   record(t, o, exitP, win ? stake() * SIM_PAYOUT : -stake(), win, "Simulada");
 }
 
-async function placeDemo(t, dir, ref) {
+async function placeDemo(t, dir, ref, by) {
   const amt = stake();
-  t.open = { dir, entry: ref, sending: true, at: hhmm() }; t.ops++;
+  t.open = { dir, by, entry: ref, sending: true, at: hhmm() }; t.ops++;
   try {
     const p = await send({ proposal: 1, amount: amt, basis: "stake", contract_type: dir === "up" ? "CALL" : "PUT",
       currency: account.currency, duration: t.dur, duration_unit: "m", underlying_symbol: t.symbol });
     const b = (await send({ buy: p.proposal.id, price: amt })).buy;
-    t.open = { dir, entry: ref, id: b.contract_id, cost: b.buy_price, at: hhmm(), expiry: Date.now() + t.dur * 60000 };
+    t.open = { dir, by, entry: ref, id: b.contract_id, cost: b.buy_price, at: hhmm(), expiry: Date.now() + t.dur * 60000 };
     send({ proposal_open_contract: 1, contract_id: b.contract_id, subscribe: 1 }).catch(() => {});
   } catch (e) {
     t.open = null; t.ops--; t.cooldown = 3;
@@ -508,19 +617,19 @@ function onContract(d) {
   if (d.subscription) send({ forget: d.subscription.id }).catch(() => {});
   const o = t.open; t.open = null; t.cooldown = 1;
   const profit = +c.profit, exitP = +(c.exit_spot ?? c.exit_tick ?? c.current_spot);
-  record(t, o, exitP, profit, c.status === "won" ? true : profit === 0 ? null : false, "Demo");
+  record(t, o, exitP, profit, c.status === "won" ? true : profit === 0 ? null : false, account && account.real ? "Real" : "Demo");
 }
 
 function record(t, o, exitP, result, win, kind) {
-  t.pnl += result;
+  t.pnl += result; if (result > 0) t.gain = (t.gain || 0) + result; else if (result < 0) t.lost = (t.lost || 0) - result;
   if (win === true) { t.wins++; t.streak = t.streak > 0 ? t.streak + 1 : 1; }
   else if (win === false) { t.losses++; t.streak = t.streak < 0 ? t.streak - 1 : -1; }
   t.flash = win === null ? "tie" : win ? "win" : "loss"; t.flashUntil = Date.now() + 4000; t.flashAmt = result;
   const el = document.getElementById("desk-" + t.id);
   if (el && win !== null) { el.classList.remove("flash-win", "flash-loss"); void el.offsetWidth; el.classList.add(win ? "flash-win" : "flash-loss"); }
-  addLogRow({ at: hhmm(), t, dir: o.dir, kind, entry: o.entry, exit: exitP, result, win });
+  addLogRow({ at: hhmm(), t, dir: o.dir, by: o.by, kind, entry: o.entry, exit: exitP, result, win });
   if (t.streak === 3 && win) say(`${first(t)} emendou 3 wins seguidos no ${t.asset}. É assim que se faz!`);
-  if (t.streak === 5 && win) say(`${first(t)} está imparável: 5 seguidos com ${STRATS[t.strat].name}!`);
+  if (t.streak === 5 && win) say(`${first(t)} está imparável: 5 seguidos usando ${o.by || modeName(t.strat)}!`);
   if (t.streak === -3 && win === false) say(`${first(t)}, três losses seguidos. Respira e não força entrada no ${t.asset}.`);
   const lead = ranking()[0];
   if (lead.wins > 0 && lead.id !== lastLeader) { if (lastLeader) say(`Mudança no topo: ${first(lead)} assume a liderança com ${lead.wins} wins.`); lastLeader = lead.id; }
@@ -537,31 +646,81 @@ function say(text) {
 
 function newDay(n) {
   day = { n, start: Date.now() }; dayEnded = false; stopHit = false; lastLeader = null;
-  for (const t of traders) { t.wins = t.losses = t.pnl = t.streak = t.ops = 0; }
+  for (const t of traders) { t.wins = t.losses = t.pnl = t.streak = t.ops = t.gain = t.lost = 0; }
+  day.saved = false;
   $("#log").innerHTML = ""; $("#overlay").hidden = true;
   if (n > 1) say(`Expediente ${n} aberto. Placar zerado, troféus mantidos.`);
   renderAll();
 }
 function endDay() {
   dayEnded = true;
+  saveDay(true);
   const r = ranking(), w = r[0];
   if (w.wins > 0) { trophies[w.id] = (trophies[w.id] || 0) + 1; store.set("deriv-trofeus", trophies); }
   say(w.wins ? `Fim do expediente! ${w.name} vence com ${w.wins} wins. Resultado da mesa: ${money(teamPnl())}.` : "Fim do expediente sem wins. Amanhã tem mais.");
   $("#o-title").textContent = w.wins ? w.name : "Sem vencedor";
-  $("#o-text").textContent = w.wins ? `${w.wins} wins no ${w.asset} com ${STRATS[w.strat].name}. Resultado da mesa: ${money(teamPnl())}. Operações ainda abertas terminam normalmente.` : "Ninguém fechou operação vencedora.";
+  $("#o-text").textContent = w.wins ? `${w.wins} wins no ${w.asset} no modo ${modeName(w.strat)}. Resultado da mesa: ${money(teamPnl())}. Operações ainda abertas terminam normalmente.` : "Ninguém fechou operação vencedora.";
   $("#overlay").hidden = false; renderBoard();
+}
+
+/* ---------- Histórico de expedientes ---------- */
+let history = store.get("deriv-historico", []);
+function snapshot() {
+  const ts = traders.map(t => ({ name: t.name, asset: t.asset, mode: modeName(t.strat), wins: t.wins, losses: t.losses, gain: +(t.gain || 0).toFixed(2), lost: +(t.lost || 0).toFixed(2), net: +t.pnl.toFixed(2) }));
+  const sum = k => +ts.reduce((a, t) => a + t[k], 0).toFixed(2);
+  const best = ranking()[0];
+  return { at: new Date().toISOString(), day: day.n, account: account ? (account.real ? "Real" : "Demo") + " " + account.id : "Simulação", currency: account ? account.currency : "USD",
+    tf: tfMin(), wins: sum("wins"), losses: sum("losses"), gain: sum("gain"), lost: sum("lost"), net: sum("net"), best: best.wins ? `${best.name} (${best.wins} wins)` : "—", traders: ts };
+}
+function saveDay(auto) {
+  const snap = snapshot();
+  if (!snap.wins && !snap.losses) { if (!auto) say("Ainda não há operação fechada para salvar neste expediente."); return; }
+  const i = history.findIndex(h => h.day === snap.day && h.startedAt === day.start);
+  snap.startedAt = day.start;
+  if (i >= 0) history[i] = snap; else history.unshift(snap);
+  history = history.slice(0, 200); store.set("deriv-historico", history);
+  renderHistory();
+  if (!auto) say(`Expediente ${snap.day} salvo: ${snap.wins} wins, ${snap.losses} loss, resultado ${money(snap.net)}.`);
+}
+function renderHistory() {
+  const body = $("#hist"); if (!body) return;
+  if (!history.length) { body.innerHTML = `<tr><td colspan="11" style="color:var(--muted)">Nenhum expediente salvo ainda.</td></tr>`; return; }
+  const dt = iso => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const cls = n => n > 0 ? "pos" : n < 0 ? "neg" : "";
+  body.innerHTML = history.map(h => {
+    const n = h.wins + h.losses, r = n ? Math.round(h.wins / n * 100) + "%" : "—";
+    const main = `<tr><td>${dt(h.at)}</td><td>${h.day}</td><td>${h.account}</td><td>M${h.tf}</td><td>${h.wins}</td><td>${h.losses}</td><td>${r}</td>
+      <td class="pos">${fmt(h.gain, 2)}</td><td class="neg">${fmt(h.lost, 2)}</td><td class="${cls(h.net)}"><b>${money(h.net)}</b> ${h.currency}</td><td>${h.best}</td></tr>`;
+    const subs = h.traders.filter(t => t.wins + t.losses).map(t => `<tr class="sub"><td></td><td></td><td colspan="2">${t.name} · ${t.asset}</td><td>${t.wins}</td><td>${t.losses}</td>
+      <td>${Math.round(t.wins / (t.wins + t.losses) * 100)}%</td><td>${fmt(t.gain, 2)}</td><td>${fmt(t.lost, 2)}</td><td>${money(t.net)}</td><td>${t.mode}</td></tr>`).join("");
+    return main + subs;
+  }).join("");
+}
+function downloadCsv() {
+  if (!history.length) { say("O histórico está vazio, nada para baixar ainda."); return; }
+  const q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [["Data", "Expediente", "Conta", "Vela (min)", "Trader", "Ativo", "Modo", "Wins", "Loss", "Ganho", "Perdido", "Resultado", "Moeda"]];
+  for (const h of history) {
+    rows.push([h.at, h.day, h.account, h.tf, "TOTAL DA MESA", "", "", h.wins, h.losses, h.gain, h.lost, h.net, h.currency]);
+    for (const t of h.traders) rows.push([h.at, h.day, h.account, h.tf, t.name, t.asset, t.mode, t.wins, t.losses, t.gain, t.lost, t.net, h.currency]);
+  }
+  const csv = "﻿" + rows.map(r => r.map(q).join(";")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `agencia-traders-historico-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
 /* ---------- Render ---------- */
 function setMode(m) {
   mode = m; const p = $("#mode-pill");
-  p.className = "pill " + (m === "demo" ? "ok" : m === "sim" ? "warn" : "bad");
-  p.textContent = m === "demo" ? "Conta demo · ordens na Deriv" : m === "sim" ? "Simulação · preço ao vivo" : "Desconectado";
-  $("#floor-label").textContent = m === "demo" ? "Ordens na conta demo da Deriv · velas de 1 min ao vivo" : "Operações simuladas · velas de 1 min ao vivo";
+  p.className = "pill " + (m === "real" ? "real" : m === "demo" ? "ok" : m === "sim" ? "warn" : "bad");
+  p.textContent = m === "real" ? "CONTA REAL · dinheiro de verdade" : m === "demo" ? "Conta demo · ordens na Deriv" : m === "sim" ? "Simulação · preço ao vivo" : "Desconectado";
+  $("#floor-label").textContent = (m === "real" ? "Ordens na CONTA REAL da Deriv" : m === "demo" ? "Ordens na conta demo da Deriv" : "Operações simuladas") + ` · velas de ${tfMin()} min ao vivo`;
   renderAccount();
 }
 function renderAccount() {
-  $("#acct-id").textContent = account ? `${account.id} · conta demo` : mode === "sim" ? "Sem conta: modo simulação" : "Nenhuma conta conectada";
+  $("#acct-id").textContent = account ? `${account.id} · conta ${account.real ? "REAL" : "demo"}` : mode === "sim" ? "Sem conta: modo simulação" : "Nenhuma conta conectada";
   $("#acct-bal").textContent = account ? `${fmt(account.balance, 2)} ${account.currency}` : "—";
   const tp = teamPnl(), el = $("#team-pnl"); el.textContent = money(tp); el.style.color = tp > 0 ? "var(--up)" : tp < 0 ? "var(--down)" : "";
 }
@@ -588,12 +747,12 @@ function updateDesks() {
     d.classList.toggle("sel", t.id === selected);
     d.classList.toggle("busy", mode !== "off" && t.ready && !t.open && !t.flash && entriesOn && !dayEnded && !stopHit);
     d.querySelector(".px").textContent = t.live != null ? fmt(t.live, t.dec) : "—";
-    d.querySelector(".st").textContent = `${STRATS[t.strat].name} · ${t.dur} min`;
+    d.querySelector(".st").textContent = `${modeName(t.strat)} · M${tfMin()} · exp. ${t.dur} min`;
     const b = d.querySelector(".bubble");
     if (t.flash) { b.className = "bubble " + t.flash; b.textContent = t.flash === "tie" ? "EMPATE" : (t.flash === "win" ? "WIN " : "LOSS ") + money(t.flashAmt); }
     else if (t.open) {
       const up = t.open.dir === "up"; b.className = "bubble " + (up ? "up" : "down");
-      const left = t.open.sending ? "enviando" : t.open.sim ? t.open.left + " min" : Math.max(0, Math.ceil((t.open.expiry - now) / 1000)) + "s";
+      const left = t.open.sending ? "enviando" : t.open.sim ? t.open.left * tfMin() + " min" : Math.max(0, Math.ceil((t.open.expiry - now) / 1000)) + "s";
       b.textContent = (up ? "▲ SOBE " : "▼ DESCE ") + left;
     }
     else if (mode === "off") { b.className = "bubble closed"; b.textContent = "desconectado"; }
@@ -645,18 +804,23 @@ function renderBoard() {
 }
 function renderDetail() {
   const t = traders.find(x => x.id === selected);
+  const fams = {}; for (const [k, s] of Object.entries(STRATS)) (fams[s.fam] = fams[s.fam] || []).push(k);
+  const opt = k => `<option value="${k}" ${k === t.strat ? "selected" : ""}>${modeName(k)}</option>`;
   $("#d-name").innerHTML = `Mesa de ${first(t)} <span class="label">${t.symbol}</span>`;
   $("#d-body").innerHTML = `
     <div class="row"><span>Especialidade</span><b>${t.asset}</b></div>
-    <div class="row"><label for="strat-sel" style="color:var(--muted)">Estratégia</label>
-      <select id="strat-sel">${Object.entries(STRATS).map(([k, s]) => `<option value="${k}" ${k === t.strat ? "selected" : ""}>${s.name}</option>`).join("")}</select></div>
-    <p class="hint" id="strat-desc">${STRATS[t.strat].desc}</p>
-    <div class="row"><span>Expiração</span><b>${t.dur} min</b></div>
+    <div class="row"><label for="strat-sel" style="color:var(--muted)">Modo de operar</label>
+      <select id="strat-sel"><optgroup label="Usa todas as estratégias">${Object.keys(MODES).map(opt).join("")}</optgroup>
+      ${Object.entries(fams).map(([f, ks]) => `<optgroup label="Só uma: ${f}">${ks.map(opt).join("")}</optgroup>`).join("")}</select></div>
+    <p class="hint" id="strat-desc">${modeDesc(t.strat)}</p>
+    <div class="row"><span>Vela / expiração</span><b>M${tfMin()} · ${t.dur} min</b></div>
     <div class="row"><span>Operações no expediente</span><b id="d-ops"></b></div>
-    <div class="row"><span>Sequência atual</span><b id="d-streak"></b></div>`;
+    <div class="row"><span>Sequência atual</span><b id="d-streak"></b></div>
+    <span class="label" style="margin-top:6px">O que ${first(t)} aprendeu no ${t.asset}</span>
+    <div class="log-wrap" style="max-height:280px"><table class="learn"><thead><tr><th>Estratégia</th><th>Acertos</th><th>Taxa</th><th>Agora</th></tr></thead><tbody id="d-learn"></tbody></table></div>`;
   $("#strat-sel").addEventListener("change", e => {
-    t.strat = e.target.value; savedStrats[t.id] = t.strat; store.set("deriv-estrategias", savedStrats);
-    $("#strat-desc").textContent = STRATS[t.strat].desc; say(`${first(t)} agora opera ${t.asset} com ${STRATS[t.strat].name}.`); updateDesks();
+    t.strat = e.target.value; savedStrats[t.id] = t.strat; store.set("deriv-modos", savedStrats);
+    $("#strat-desc").textContent = modeDesc(t.strat); say(`${first(t)} agora opera ${t.asset} no modo ${modeName(t.strat)}.`); updateDesks();
   });
   updateDetail();
 }
@@ -665,11 +829,19 @@ function updateDetail() {
   el.textContent = t.streak === 0 ? "—" : (t.streak > 0 ? t.streak + " win" : -t.streak + " loss") + (Math.abs(t.streak) > 1 ? "s" : "");
   el.style.color = t.streak > 0 ? "var(--up)" : t.streak < 0 ? "var(--down)" : "";
   $("#d-ops").textContent = `${t.ops} de ${$("#maxops").value}`;
+  if (!t.ready) { $("#d-learn").innerHTML = `<tr><td colspan="4" style="color:var(--muted)">Conecte para ${first(t)} estudar o histórico.</td></tr>`; return; }
+  const rows = LEARN.map(k => ({ k, st: t.stats[k] || { w: 0, l: 0 } })).sort((a, b) => hit(b.st) - hit(a.st) || (b.st.w + b.st.l) - (a.st.w + a.st.l));
+  $("#d-learn").innerHTML = rows.map(({ k, st }) => {
+    const n = st.w + st.l, r = n ? Math.round(st.w / n * 100) : null, sg = t.lastSig[k];
+    const col = r == null ? "" : r >= 55 ? "var(--up)" : r < 45 ? "var(--down)" : "";
+    return `<tr><td>${STRATS[k].name}<br><span style="color:var(--muted);font-size:11px">${STRATS[k].fam}</span></td><td>${st.w}/${n}</td>
+      <td style="color:${col}">${r == null ? "—" : r + "%"}</td><td class="${sg ? "dir-" + sg : ""}">${sg ? (sg === "up" ? "▲" : "▼") : "·"}</td></tr>`;
+  }).join("");
 }
 function addLogRow(e) {
   const tr = document.createElement("tr");
   const res = e.win === null ? "EMPATE " + money(e.result) : (e.win ? "WIN " : "LOSS ") + money(e.result);
-  tr.innerHTML = `<td>${e.at}</td><td>${e.t.name}</td><td>${e.t.asset}</td><td class="dir-${e.dir}">${e.dir === "up" ? "▲ Sobe" : "▼ Desce"}</td><td>${e.kind}</td>
+  tr.innerHTML = `<td>${e.at}</td><td>${e.t.name}</td><td>${e.t.asset}</td><td class="dir-${e.dir}">${e.dir === "up" ? "▲ Sobe" : "▼ Desce"}</td><td>${e.by || "—"}</td><td>${e.kind}</td>
     <td>${e.entry != null ? fmt(e.entry, e.t.dec) : "—"}</td><td>${isFinite(e.exit) ? fmt(e.exit, e.t.dec) : "—"}</td><td>${fmt(stake(), 2)}</td>
     <td class="res-${e.win === null ? "tie" : e.win ? "win" : "loss"}">${res}</td>`;
   const body = $("#log"); body.prepend(tr); while (body.children.length > 100) body.lastChild.remove();
@@ -693,9 +865,50 @@ $("#conn-form").addEventListener("submit", e => {
   start(tok);
 });
 $("#sim-btn").addEventListener("click", () => start(null));
+function syncAcctType() {
+  const real = $("#acct-type").value === "real";
+  $("#real-box").hidden = !real;
+  $("#connect-btn").textContent = real ? "Conectar conta REAL" : "Conectar conta demo";
+  $("#connect-btn").className = real ? "danger" : "primary";
+  if (!real) { $("#real-ok").checked = false; $("#real-word").value = ""; }
+}
+$("#acct-type").addEventListener("change", syncAcctType);
+$("#save-day").addEventListener("click", () => saveDay(false));
+$("#csv-day").addEventListener("click", downloadCsv);
+let clearArmed = 0;
+$("#clear-hist").addEventListener("click", e => {
+  if (Date.now() - clearArmed > 4000) { clearArmed = Date.now(); e.target.textContent = "Clique de novo para apagar"; e.target.id = "clear-hist"; setTimeout(() => { e.target.textContent = "Limpar histórico"; }, 4000); return; }
+  history = []; store.set("deriv-historico", history); renderHistory(); e.target.textContent = "Limpar histórico"; say("Histórico de expedientes apagado.");
+});
+renderHistory();
+$("#stopall").addEventListener("click", async () => {
+  entriesOn = false; $("#play").textContent = "Retomar entradas";
+  const open = traders.filter(t => t.open && t.open.id);
+  say(open.length ? `Parar tudo! Entradas bloqueadas e vendendo ${open.length} operação(ões) aberta(s) pelo preço atual.` : "Parar tudo! Entradas bloqueadas. Não há operação aberta na corretora.");
+  for (const t of open) {
+    try { await send({ sell: t.open.id, price: 0 }); }
+    catch (e) { say(`Não consegui vender a operação de ${first(t)} (${e.message}). Ela termina no vencimento.`); }
+  }
+  for (const t of traders) if (t.open && t.open.sim) t.open = null;
+  scheduleRender();
+});
 $("#play").addEventListener("click", () => { entriesOn = !entriesOn; $("#play").textContent = entriesOn ? "Pausar entradas" : "Retomar entradas"; say(entriesOn ? "Entradas liberadas." : "Pausa nas entradas. Operações abertas seguem até o vencimento."); scheduleRender(); });
-$("#reset").addEventListener("click", () => newDay(day.n + 1));
+$("#reset").addEventListener("click", () => { saveDay(true); newDay(day.n + 1); });
 $("#o-next").addEventListener("click", () => newDay(day.n + 1));
+try { const tf0 = store.get("deriv-tf", 1); if (TFS.includes(tf0)) $("#tf").value = String(tf0); } catch (e) {}
+$("#tf").addEventListener("change", async () => {
+  store.set("deriv-tf", tfMin());
+  for (const t of traders) { if (t.open && t.open.sim) t.open = null; t.closes = []; t.times = []; t.live = null; t.curOpen = 0; t.ready = false; }
+  renderAll();
+  if (mode === "off" || !ws) return;
+  say(`Mesa trocou para velas de ${tfMin()} min. Todo mundo reestudando o histórico…`);
+  await send({ forget_all: "candles" }).catch(() => {});
+  streams.clear();
+  const syms = (await send({ active_symbols: "brief" }).catch(() => ({}))).active_symbols || [];
+  const info = Object.fromEntries(syms.map(s => [s.underlying_symbol || s.symbol, s]));
+  await Promise.all(traders.map(t => loadTrader(t, info[t.symbol])));
+  renderAll();
+});
 ["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
 window.addEventListener("resize", scheduleRender);
 setInterval(() => { renderTop(); scheduleRender(); }, 1000);
