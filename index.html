@@ -162,6 +162,14 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pill.warn { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .pill.bad { color: var(--down); background: color-mix(in srgb, var(--down) 15%, transparent); }
 .acct { display: grid; gap: 8px; align-content: start; }
+.conn-bar { display: none; }
+.conn.compact { grid-template-columns: minmax(0, 1fr); padding-block: 10px; }
+.conn.compact #conn-form, .conn.compact .steps { display: none; }
+.conn.compact .acct { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.conn.compact .acct .label { display: none; }
+.conn.compact .acct .big { font-size: 20px; }
+.conn.compact .acct .row { gap: 8px; }
+.conn.compact .conn-bar { display: block; margin-left: auto; }
 .acct .big { font: 700 26px var(--f-mono); font-variant-numeric: tabular-nums; }
 .err { color: var(--down); font-size: 13px; margin: 0; }
 .steps { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
@@ -242,6 +250,7 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
       <div id="acct-id" style="font-family:var(--f-mono)">Nenhuma conta conectada</div>
       <div class="big" id="acct-bal">—</div>
       <div class="row"><span>Resultado da mesa no expediente</span><b id="team-pnl">0,00</b></div>
+      <div class="conn-bar"><button type="button" id="open-settings">Ajustes e conexão</button></div>
       <ol class="steps">
         <li>Em <a href="https://developers.deriv.com" target="_blank" rel="noopener">developers.deriv.com</a>, entre com sua conta e registre um aplicativo do tipo <b>PAT</b>. Copie o <b>App ID</b> dele.</li>
         <li>Crie o token (PAT) com permissão de negociar (trade).</li>
@@ -473,7 +482,7 @@ function connect(url) {
     catch (e) { clearTimeout(to); return rej(new Error("O navegador bloqueou a conexão. Abra o arquivo direto no Chrome ou Edge.")); }
     ws.onopen = () => { if (done) return; done = true; clearTimeout(to); clearInterval(pingTimer); pingTimer = setInterval(() => send({ ping: 1 }).catch(() => {}), 30000); res(); };
     ws.onerror = () => { if (done) return; done = true; clearTimeout(to); rej(new Error("Não consegui abrir a conexão com a Deriv. Abra o arquivo direto no Chrome ou Edge e confira a internet.")); };
-    ws.onclose = () => { clearInterval(pingTimer); for (const p of pending.values()) p.rej(new Error("Conexão encerrada")); pending.clear(); if (mode !== "off") { setMode("off"); say("Caímos da Deriv. Clique em Conectar de novo."); } };
+    ws.onclose = () => { clearInterval(pingTimer); for (const p of pending.values()) p.rej(new Error("Conexão encerrada")); pending.clear(); if (mode !== "off") { setMode("off"); $(".conn").classList.remove("compact"); say("Caímos da Deriv. Clique em Conectar de novo."); } };
     ws.onmessage = onMsg;
   });
 }
@@ -557,6 +566,7 @@ async function start(token) {
     if (lastKey && key !== lastKey && traders.some(t => t.wins + t.losses)) { saveDay(true); newDay(day.n + 1); }
     lastKey = key;
     setMode(account ? (account.real ? "real" : "demo") : "sim"); status("");
+    if (account) $(".conn").classList.add("compact");
     say(account
       ? `Conectados na conta ${account.real ? "REAL" : "demo"} ${account.id}. Cada um opera ${fmt(stake(), 2)} ${account.currency} por entrada, no máximo ${$("#maxops").value} operações. Boa caça aos wins!`
       : "Preços ao vivo da Deriv chegando. Por enquanto é treino: operações simuladas, sem ordem na corretora.");
@@ -924,6 +934,7 @@ $("#conn-form").addEventListener("submit", e => {
   start(tok);
 });
 $("#sim-btn").addEventListener("click", () => start(null));
+$("#open-settings").addEventListener("click", () => { $(".conn").classList.remove("compact"); $("#token").focus(); });
 function syncAcctType() {
   const real = $("#acct-type").value === "real";
   $("#real-box").hidden = !real;
