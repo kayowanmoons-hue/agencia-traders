@@ -233,6 +233,9 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
 .kparts { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.18); }
 .kparts > div { display: flex; justify-content: space-between; font-size: 13px; } .kparts > div span { color: var(--muted); }
 .kparts .hint { margin: 0 0 4px; font-size: 11px; }
+.risk { display: inline-flex; align-items: center; gap: 6px; font: 600 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.risk select[data-v="moderado"] { border-color: var(--wait); color: var(--wait); }
+.risk select[data-v="agressivo"] { border-color: var(--down); color: var(--down); }
 .bubble.tie, .bubble.closed { background: var(--line); color: var(--muted); }
 .learn { font-size: 12px; }
 .learn td, .learn th { text-align: right; vertical-align: top; }
@@ -375,6 +378,7 @@ body { background: radial-gradient(1200px 500px at 70% -10%, #17253a 0%, transpa
       <button id="play" class="primary">Pausar entradas</button>
       <button id="stopall" class="danger" type="button">Parar tudo</button>
       <button id="fast" type="button" aria-pressed="true">Estudo acelerado: ligado</button>
+      <label class="risk" title="Quanto o trader arrisca: define a confiança mínima automática e o limite de operações"><span>Risco</span><select id="risk"><option value="conservador">Conservador</option><option value="moderado">Moderado</option><option value="agressivo">Agressivo</option></select></label>
       <button id="boost" type="button" title="A Marta passa o melhor estudo disponível e os 3 traders com menos conhecimento estudam vários lotes de gráfico seguidos">Reforço para quem sabe menos</button>
       <button id="reset">Novo expediente</button>
     </div>
@@ -718,7 +722,10 @@ function threshold(t) {
   const v = $("#minconf") ? $("#minconf").value : "auto";
   if (v !== "auto") return +v / 100;
   let top = 0; for (const k of LEARN) { const e = edgeOf(t, k); if (e && e.c > top) top = e.c; }
-  return Math.max(0.55, top - 0.02);
+  const r = $("#risk") ? $("#risk").value : "conservador";
+  if (r === "agressivo") return 0.50;                      // entra em qualquer estratégia com confiança acima do acaso
+  if (r === "moderado") return Math.max(0.52, top - 0.08); // aceita também as configurações um pouco abaixo da melhor
+  return Math.max(0.55, top - 0.02);                       // só as melhores configurações
 }
 function saveBrains() {
   for (const t of traders) if (t.ready) brains[brainKey(t)] = { stats: t.stats, studied: t.studied || 0, until: t.times[t.times.length - 1] || 0, oldest: t.oldest || 0, trained: t.trained || 0, exhausted: !!t.exhausted };
@@ -1345,7 +1352,7 @@ function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() 
 
 /* ---------- Memória da página (sobrevive ao atualizar) ---------- */
 let feedLog = [], logLog = [], persistT = 0;
-const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type", "minconf", "m1only"];
+const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type", "minconf", "m1only", "risk"];
 function persist() {
   clearTimeout(persistT);
   persistT = setTimeout(() => store.set("deriv-estado", {
@@ -1687,6 +1694,18 @@ $("#tf").addEventListener("change", async () => {
 });
 ["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
 SETTINGS.forEach(id => $("#" + id).addEventListener("change", persist));
+const RISK = { conservador: { ops: 10, txt: "Conservador: só as melhores configurações de cada trader, até 10 operações por trader." },
+  moderado: { ops: 25, txt: "Moderado: aceita configurações um pouco abaixo da melhor (mínimo 52% de confiança), até 25 operações por trader." },
+  agressivo: { ops: 50, txt: "Agressivo: entra em qualquer estratégia com confiança acima de 50%, até 50 operações por trader. Atenção: com pagamento de uns 85% a 90%, é preciso acertar mais de 53% a 54% só para empatar; entradas fracas tendem a perder dinheiro com o tempo." } };
+function syncRisk() { const el = $("#risk"); el.dataset.v = el.value; }
+$("#risk").addEventListener("change", e => {
+  const r = RISK[e.target.value]; syncRisk();
+  if ($("#minconf").value !== "auto") { $("#minconf").value = "auto"; }
+  $("#maxops").value = r.ops; persist();
+  say("Nível de risco: " + r.txt + " O valor por entrada, o stop da mesa e o Parar tudo continuam valendo.");
+  updateDetail(); scheduleRender();
+});
+syncRisk();
 $("#m1only").addEventListener("change", () => {
   if (m1Only()) {
     say("Modo só M1 ligado: os traders só entram com expiração de 1 min, em velas de 1 min. A Marta vai remontar a mesa com ativos que aceitam isso.");
@@ -1791,7 +1810,7 @@ setInterval(persist, 10000);
 const saved = store.get("deriv-token", ""); $("#appid").value = store.get("deriv-appid", "");
 if (saved) { $("#token").value = saved; $("#remember").checked = true; }
 setMode("off");
-const restored = restore();
+const restored = restore(); syncRisk();
 syncAcctType(); renderAll();
 if (restored) say("Página atualizada: placar, operações e mensagens do expediente foram recuperados.");
 else say("Bom dia, equipe! Conectem na Deriv e quem fechar o expediente com mais wins leva o troféu.");
