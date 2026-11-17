@@ -515,6 +515,7 @@ async function start(token) {
       account = { id: acc.account_id, currency: acc.currency || "USD", balance: acc.balance, real: want === "real" };
       if ($("#remember").checked) { store.set("deriv-token", token); store.set("deriv-appid", appId); } else { store.del("deriv-token"); }
       send({ balance: 1, subscribe: 1 }).catch(() => {});
+      for (const t of traders) if (t.open && t.open.id) send({ proposal_open_contract: 1, contract_id: t.open.id, subscribe: 1 }).catch(() => {});
     } else {
       status("Conectando nos preços públicos da Deriv…");
       await connect(WS_PUBLIC);
@@ -635,20 +636,22 @@ function record(t, o, exitP, result, win, kind) {
   if (lead.wins > 0 && lead.id !== lastLeader) { if (lastLeader) say(`Mudança no topo: ${first(lead)} assume a liderança com ${lead.wins} wins.`); lastLeader = lead.id; }
   const lim = +$("#stoploss").value || 15;
   if (!stopHit && teamPnl() <= -lim) { stopHit = true; say(`Stop da mesa atingido (${money(teamPnl())}). Ninguém abre nova operação neste expediente.`); }
-  renderBoard(); updateDetail(); renderAccount(); scheduleRender();
+  renderBoard(); updateDetail(); renderAccount(); scheduleRender(); persist();
 }
 
 function say(text) {
   const d = document.createElement("div"); d.className = "msg";
-  const tm = document.createElement("time"); tm.textContent = hhmm(); d.append(tm, document.createTextNode(text));
+  const at = arguments[1] || hhmm();
+  const tm = document.createElement("time"); tm.textContent = at; d.append(tm, document.createTextNode(text));
   const f = $("#feed"); f.prepend(d); while (f.children.length > 40) f.lastChild.remove();
+  if (!arguments[1]) { feedLog.unshift({ at, text }); feedLog.length = Math.min(feedLog.length, 40); persist(); }
 }
 
 function newDay(n) {
-  day = { n, start: Date.now() }; dayEnded = false; stopHit = false; lastLeader = null;
+  day = { n, start: Date.now(), elapsed: 0 }; dayEnded = false; stopHit = false; lastLeader = null;
   for (const t of traders) { t.wins = t.losses = t.pnl = t.streak = t.ops = t.gain = t.lost = 0; }
   day.saved = false;
-  $("#log").innerHTML = ""; $("#overlay").hidden = true;
+  $("#log").innerHTML = ""; logLog = []; $("#overlay").hidden = true; persist();
   if (n > 1) say(`Expediente ${n} aberto. Placar zerado, troféus mantidos.`);
   renderAll();
 }
@@ -838,24 +841,52 @@ function updateDetail() {
       <td style="color:${col}">${r == null ? "—" : r + "%"}</td><td class="${sg ? "dir-" + sg : ""}">${sg ? (sg === "up" ? "▲" : "▼") : "·"}</td></tr>`;
   }).join("");
 }
-function addLogRow(e) {
+function addLogRow(e, restoring) {
+  if (!restoring) { logLog.unshift({ ...e, t: e.t.id, stake: stake() }); logLog.length = Math.min(logLog.length, 100); persist(); }
+  if (typeof e.t === "string") e = { ...e, t: traders.find(x => x.id === e.t) || traders[0] };
   const tr = document.createElement("tr");
   const res = e.win === null ? "EMPATE " + money(e.result) : (e.win ? "WIN " : "LOSS ") + money(e.result);
   tr.innerHTML = `<td>${e.at}</td><td>${e.t.name}</td><td>${e.t.asset}</td><td class="dir-${e.dir}">${e.dir === "up" ? "▲ Sobe" : "▼ Desce"}</td><td>${e.by || "—"}</td><td>${e.kind}</td>
-    <td>${e.entry != null ? fmt(e.entry, e.t.dec) : "—"}</td><td>${isFinite(e.exit) ? fmt(e.exit, e.t.dec) : "—"}</td><td>${fmt(stake(), 2)}</td>
+    <td>${e.entry != null ? fmt(e.entry, e.t.dec) : "—"}</td><td>${isFinite(e.exit) ? fmt(e.exit, e.t.dec) : "—"}</td><td>${fmt(e.stake ?? stake(), 2)}</td>
     <td class="res-${e.win === null ? "tie" : e.win ? "win" : "loss"}">${res}</td>`;
   const body = $("#log"); body.prepend(tr); while (body.children.length > 100) body.lastChild.remove();
 }
 function renderTop() {
-  const len = (+$("#daylen").value || 60) * 60000, el = Date.now() - day.start;
+  const now = Date.now(); if (mode !== "off" && !dayEnded) day.elapsed = (day.elapsed || 0) + (now - (renderTop.last || now)); renderTop.last = now;
+  const len = (+$("#daylen").value || 60) * 60000, el = day.elapsed || 0;
   $("#day").textContent = day.n; $("#clock").textContent = hhmm();
   $("#prog").style.width = Math.min(100, el / len * 100) + "%";
   if (!dayEnded && mode !== "off" && el >= len) endDay();
-  if (mode === "off" && !dayEnded) day.start = Date.now(); // o expediente só corre conectado
 }
 function renderAll() { renderDesks(); renderBoard(); renderDetail(); renderAccount(); renderTop(); }
 let rq = false;
 function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() => { rq = false; updateDesks(); }); }
+
+/* ---------- Memória da página (sobrevive ao atualizar) ---------- */
+let feedLog = [], logLog = [], persistT = 0;
+const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type"];
+function persist() {
+  clearTimeout(persistT);
+  persistT = setTimeout(() => store.set("deriv-estado", {
+    v: 1, savedAt: Date.now(), day, dayEnded, stopHit, entriesOn, lastLeader, selected,
+    traders: traders.map(t => ({ id: t.id, wins: t.wins, losses: t.losses, pnl: t.pnl, streak: t.streak, ops: t.ops, gain: t.gain || 0, lost: t.lost || 0,
+      open: t.open && t.open.id ? { ...t.open, sending: false } : null })),
+    log: logLog, feed: feedLog,
+    settings: Object.fromEntries(SETTINGS.map(id => [id, $("#" + id).value])),
+  }), 300);
+}
+function restore() {
+  const st = store.get("deriv-estado", null); if (!st || st.v !== 1) return false;
+  for (const [id, v] of Object.entries(st.settings || {})) { const el = $("#" + id); if (el && v != null && v !== "") el.value = v; }
+  day = st.day || day; dayEnded = !!st.dayEnded; stopHit = !!st.stopHit; entriesOn = st.entriesOn !== false; lastLeader = st.lastLeader || null;
+  if (st.selected && traders.some(t => t.id === st.selected)) selected = st.selected;
+  for (const x of st.traders || []) { const t = traders.find(y => y.id === x.id); if (!t) continue; Object.assign(t, { wins: x.wins, losses: x.losses, pnl: x.pnl, streak: x.streak, ops: x.ops, gain: x.gain, lost: x.lost, open: x.open }); }
+  logLog = st.log || []; feedLog = st.feed || [];
+  for (const e of [...logLog].reverse()) addLogRow({ ...e }, true);
+  for (const m of [...feedLog].reverse()) say(m.text, m.at);
+  $("#play").textContent = entriesOn ? "Pausar entradas" : "Retomar entradas";
+  return true;
+}
 
 /* ---------- Controles ---------- */
 $("#conn-form").addEventListener("submit", e => {
@@ -892,7 +923,7 @@ $("#stopall").addEventListener("click", async () => {
   for (const t of traders) if (t.open && t.open.sim) t.open = null;
   scheduleRender();
 });
-$("#play").addEventListener("click", () => { entriesOn = !entriesOn; $("#play").textContent = entriesOn ? "Pausar entradas" : "Retomar entradas"; say(entriesOn ? "Entradas liberadas." : "Pausa nas entradas. Operações abertas seguem até o vencimento."); scheduleRender(); });
+$("#play").addEventListener("click", () => { entriesOn = !entriesOn; persist(); $("#play").textContent = entriesOn ? "Pausar entradas" : "Retomar entradas"; say(entriesOn ? "Entradas liberadas." : "Pausa nas entradas. Operações abertas seguem até o vencimento."); scheduleRender(); });
 $("#reset").addEventListener("click", () => { saveDay(true); newDay(day.n + 1); });
 $("#o-next").addEventListener("click", () => newDay(day.n + 1));
 try { const tf0 = store.get("deriv-tf", 1); if (TFS.includes(tf0)) $("#tf").value = String(tf0); } catch (e) {}
@@ -910,14 +941,23 @@ $("#tf").addEventListener("change", async () => {
   renderAll();
 });
 ["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
+SETTINGS.forEach(id => $("#" + id).addEventListener("change", persist));
+window.addEventListener("pagehide", () => { clearTimeout(persistT); persistT = 0; persist(); });
 window.addEventListener("resize", scheduleRender);
 setInterval(() => { renderTop(); scheduleRender(); }, 1000);
+setInterval(persist, 10000);
 
 const saved = store.get("deriv-token", ""); $("#appid").value = store.get("deriv-appid", "");
 if (saved) { $("#token").value = saved; $("#remember").checked = true; }
-setMode("off"); renderAll();
-say("Bom dia, equipe! Conectem na Deriv e quem fechar o expediente com mais wins leva o troféu.");
-start(saved || null);
+setMode("off");
+const restored = restore();
+syncAcctType(); renderAll();
+if (restored) say("Página atualizada: placar, operações e mensagens do expediente foram recuperados.");
+else say("Bom dia, equipe! Conectem na Deriv e quem fechar o expediente com mais wins leva o troféu.");
+if (saved && $("#acct-type").value === "real") {
+  start(null);
+  say("A conta real não reconecta sozinha. Confirme o aviso e clique em Conectar conta REAL para voltar a operar.");
+} else start(saved || null);
 })();
 </script>
 </body>
