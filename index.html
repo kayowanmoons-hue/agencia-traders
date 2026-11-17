@@ -369,6 +369,7 @@ body { background: radial-gradient(1200px 500px at 70% -10%, #17253a 0%, transpa
       <button id="play" class="primary">Pausar entradas</button>
       <button id="stopall" class="danger" type="button">Parar tudo</button>
       <button id="fast" type="button" aria-pressed="true">Estudo acelerado: ligado</button>
+      <button id="boost" type="button" title="A Marta passa o melhor estudo disponível e os 3 traders com menos conhecimento estudam vários lotes de gráfico seguidos">Reforço para quem sabe menos</button>
       <button id="reset">Novo expediente</button>
     </div>
   </header>
@@ -1379,7 +1380,8 @@ async function runTraining(manual) {
   document.getElementById("actor-coord")?.classList.add("talking");
   setLesson("Treinamento agora:\n" + lessonFor(pool));
   await wait(2600);
-  const got = await Promise.all(pool.map(t => deepStudy(t).catch(() => 0)));
+  pool.forEach(t => { const m = mentor(t); if (m) say(`${first(t)} recebeu o estudo ${m} do ${t.asset}.`); });
+  const got = await Promise.all(pool.map(async t => { let n = 0; for (let i = 0; i < 3 && !t.exhausted; i++) n += await deepStudy(t).catch(() => 0); return n; }));
   setLesson("Depois do estudo:\n" + lessonFor(pool));
   await wait(6000);
   pool.forEach((t, i) => say(got[i]
@@ -1575,13 +1577,58 @@ setInterval(saveBrains, 30000);
 /* Estudo acelerado: a cada 2 s um trader (em rodízio) estuda o próximo lote de até 5000 velas mais antigas.
    Um pedido por vez para não sobrecarregar a Deriv; quem já estudou todo o histórico disponível sai do rodízio. */
 let fastOn = store.get("deriv-fast", true), fastI = 0, fastBusy = false;
+// Mentoria: quem sabe menos recebe o maior estudo que já existe do mesmo ativo (da Marta ou de um colega que já operou ele)
+function mentor(t) {
+  if (!t.ready) return null;
+  let src = null, best = t.studied || 0;
+  const m = market[mkey(t.symbol)];
+  if (m && m.ok && m.studied > best) { src = { stats: m.stats, studied: m.studied, oldest: m.oldest, who: "da Marta" }; best = m.studied; }
+  for (const u of traders) {
+    if (u === t) continue;
+    const b = brains[brainKey(u, t.symbol)];
+    if (b && b.stats && (b.studied || 0) > best) { src = { stats: b.stats, studied: b.studied, oldest: b.oldest, exhausted: b.exhausted, who: "de " + first(u) }; best = b.studied; }
+  }
+  if (!src) return null;
+  t.stats = JSON.parse(JSON.stringify(src.stats)); t.studied = src.studied;
+  if (src.oldest && (!t.oldest || src.oldest < t.oldest)) { t.oldest = src.oldest; t.exhausted = !!src.exhausted; }
+  return src.who;
+}
+const lowest = n => traders.filter(t => t.ready && !t.away).sort((a, b) => knowledge(a) - knowledge(b)).slice(0, n);
+let boosting = false;
+async function boost() {
+  if (mode === "off" || !ws) { say("Conecte primeiro para a Marta poder dar o reforço."); return; }
+  if (boosting || training || evaluating) { say("A Marta está ocupada agora. Tente o reforço daqui a pouco."); return; }
+  boosting = true; $("#boost").disabled = true;
+  while (fastBusy) await wait(200);
+  fastBusy = true;
+  const pool = lowest(3);
+  say(`Reforço! ${pool.map(t => `${first(t)} (${knowledge(t)}%)`).join(", ")}: estudo extra agora.`);
+  try {
+    for (const t of pool) {
+      const before = knowledge(t), m = mentor(t);
+      let n = 0; const d = document.getElementById("desk-" + t.id);
+      for (let i = 0; i < 4 && !t.exhausted && mode !== "off"; i++) {
+        n += await deepStudy(t).catch(() => 0);
+        if (d) { d.classList.remove("studying"); void d.offsetWidth; d.classList.add("studying"); }
+        updateDesks(); await wait(150);
+      }
+      const after = knowledge(t);
+      say(`${first(t)} · ${t.asset}: ${m ? `recebeu o estudo ${m}` : "não havia estudo maior para receber"}${n ? ` e estudou mais ${n.toLocaleString("pt-BR")} velas antigas` : t.exhausted ? " e já estudou todo o histórico que a Deriv tem" : ""}. Conhecimento ${before}% → ${after}%.` +
+        (after - before < 3 ? " Subiu pouco porque o gráfico deste ativo não mostrou uma estratégia muito melhor que o acaso; isso só melhora com mais tempo de mercado." : ""));
+    }
+    saveBrains();
+  } finally { fastBusy = false; boosting = false; $("#boost").disabled = false; renderBoard(); updateDetail(); scheduleRender(); }
+}
+$("#boost").addEventListener("click", boost);
 function syncFast() { const b = $("#fast"); b.setAttribute("aria-pressed", String(fastOn)); b.textContent = "Estudo acelerado: " + (fastOn ? "ligado" : "desligado"); }
 $("#fast").addEventListener("click", () => { fastOn = !fastOn; store.set("deriv-fast", fastOn); syncFast(); say(fastOn ? "Estudo acelerado ligado: a mesa estuda gráfico antigo a cada 2 segundos." : "Estudo acelerado desligado. Seguem só os treinamentos na sala."); });
 syncFast();
 setInterval(async () => {
   if (!fastOn || fastBusy || training || evaluating || mode === "off" || !ws) return;
   const pool = traders.filter(t => t.ready && !t.exhausted && !t.away); if (!pool.length) return;
-  const t = pool[fastI++ % pool.length]; fastBusy = true;
+  // 3 de cada 4 vezes estuda um dos 3 com menos conhecimento; na outra, segue o rodízio normal
+  const low = [...pool].sort((a, b) => knowledge(a) - knowledge(b)).slice(0, 3);
+  const t = fastI % 4 === 3 ? pool[fastI % pool.length] : low[fastI % low.length]; fastI++; fastBusy = true;
   const d = document.getElementById("desk-" + t.id);
   try {
     const before = knowledge(t), n = await deepStudy(t);
