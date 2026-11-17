@@ -230,6 +230,9 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
 .goal { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); margin-top: -4px; }
 .gbar { height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; } .gbar i { display: block; height: 100%; width: 0; background: var(--wait); transition: width .6s; }
 .goal.done { color: var(--accent); } .goal.done .gbar i { background: var(--accent); }
+.kparts { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.18); }
+.kparts > div { display: flex; justify-content: space-between; font-size: 13px; } .kparts > div span { color: var(--muted); }
+.kparts .hint { margin: 0 0 4px; font-size: 11px; }
 .bubble.tie, .bubble.closed { background: var(--line); color: var(--muted); }
 .learn { font-size: 12px; }
 .learn td, .learn th { text-align: right; vertical-align: top; }
@@ -1233,6 +1236,7 @@ function renderDetail() {
     <div class="row"><span>Operações no expediente</span><b id="d-ops"></b></div>
     <div class="row"><span>Sequência atual</span><b id="d-streak"></b></div>
     <div class="row"><span>Conhecimento do ativo</span><b id="d-know"></b></div>
+    <div class="kparts" id="d-kparts"></div>
     <div class="row"><span>Cenário do gráfico agora</span><b id="d-regime"></b></div>
     <div class="row"><span>Só entra com confiança acima de</span><b id="d-thr"></b></div>
     <div class="row"><span>Velas estudadas</span><b id="d-studied"></b></div>
@@ -1266,6 +1270,12 @@ function updateDetail() {
   $("#d-ops").textContent = `${t.ops} de ${$("#maxops").value}`;
   if (!t.ready) { $("#d-learn").innerHTML = `<tr><td colspan="4" style="color:var(--muted)">Conecte para ${first(t)} estudar o histórico.</td></tr>`; return; }
   $("#d-know").textContent = knowledge(t) + "%";
+  { // o que falta para 100%
+    const cn = candlesOf(t), vol = Math.round(40 * Math.min(1, cn / GOAL)), b = bestOf(t.stats || {}), c = b ? Math.max(0.5, b.c) : 0.5;
+    const acc = Math.round(60 * Math.max(0, Math.min(1, (c - 0.5) / 0.25)));
+    $("#d-kparts").innerHTML = `<div><span>Estudo (velas)</span><b>${vol} de 40</b></div><p class="hint">${cn >= GOAL ? "Completo: já estudou 100 mil velas." : t.exhausted ? `A Deriv só tem ${cn.toLocaleString("pt-BR")} velas deste ativo; não dá para estudar mais.` : `Faltam ${(GOAL - cn).toLocaleString("pt-BR")} velas para 100 mil.`}</p>
+      <div><span>Acerto comprovado</span><b>${acc} de 60</b></div><p class="hint">${b ? `Melhor estratégia: ${STRATS[b.k].name}${b.r ? " em " + REGIMES[b.r].toLowerCase() : ""}, ${Math.round(b.h * 100)}% de acerto em ${Math.round(b.n)} sinais (confiança ${Math.round(b.c * 100)}%).` : "Ainda não há estratégia com sinais suficientes."} ${acc >= 60 ? "Completo." : "Para os 60 pontos, a confiança precisa chegar a 75%. 50% é igual ao acaso e vale 0."}</p>`;
+  }
   $("#d-regime").textContent = REGIMES[t.regime] || "—";
   $("#d-thr").textContent = t.strat === "adaptativo" ? Math.round(threshold(t) * 100) + "%" + ($("#minconf").value === "auto" ? " (automática)" : "") : "só no modo Adaptativa";
   $("#d-studied").textContent = `${candlesOf(t).toLocaleString("pt-BR")} de ${GOAL.toLocaleString("pt-BR")} velas · ${Math.round(t.studied || 0).toLocaleString("pt-BR")} sinais avaliados`;
