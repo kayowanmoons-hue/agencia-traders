@@ -221,6 +221,7 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
         <div class="field" style="flex:1 1 200px"><label for="appid">App ID do seu aplicativo (tipo PAT)</label><input type="text" id="appid" placeholder="ex.: 12345"></div>
       </div>
       <div class="inline">
+        <div class="field" style="flex:1 1 260px" id="acct-pick-wrap" hidden><label for="acct-pick">Contas encontradas na Deriv</label><select id="acct-pick"></select></div>
         <div class="field" style="flex:0 1 230px"><label for="acct-type">Conta</label><select id="acct-type"><option value="demo">Demo (dinheiro fictício)</option><option value="real">Real (dinheiro de verdade)</option></select></div>
       </div>
       <div class="realbox" id="real-box" hidden>
@@ -440,7 +441,28 @@ const first = t => t.name.split(" ")[0];
 
 /* ---------- Conexão Deriv (API nova: api.derivws.com) ---------- */
 const API = "https://api.derivws.com", WS_PUBLIC = "wss://api.derivws.com/trading/v1/options/ws/public";
-let lastKey = null;
+let lastKey = null, restHeaders = null, balTimer = 0;
+const num = v => { const n = typeof v === "string" ? parseFloat(v.replace(",", ".")) : +v; return Number.isFinite(n) ? n : NaN; };
+function onBalance(d) {
+  const b = d && d.balance; if (!account || b == null) return;
+  const v = num(typeof b === "object" ? b.balance : b);
+  if (Number.isFinite(v)) { account.balance = v; if (b.currency) account.currency = b.currency; renderAccount(); }
+}
+async function refreshBalance() {
+  if (!account || !restHeaders) return;
+  try {
+    const accs = (await api("GET", "/trading/v1/options/accounts", restHeaders)).data || [];
+    fillPicker(accs);
+    const a = accs.find(x => x.account_id === account.id);
+    if (a && Number.isFinite(num(a.balance))) { account.balance = num(a.balance); renderAccount(); }
+  } catch (e) {}
+}
+function fillPicker(accs) {
+  const sel = $("#acct-pick"), cur = sel.value || store.get("deriv-acct", "");
+  sel.innerHTML = accs.map(a => `<option value="${a.account_id}">${a.account_type === "real" ? "Real" : "Demo"} ${a.account_id} · ${fmt(num(a.balance) || 0, 2)} ${a.currency || ""}${a.status === "inactive" ? " (inativa)" : ""}</option>`).join("");
+  if (accs.some(a => a.account_id === cur)) sel.value = cur;
+  $("#acct-pick-wrap").hidden = !accs.length;
+}
 let ws = null, reqId = 0, pending = new Map(), streams = new Map(), pingTimer = null;
 function status(msg) { const el = $("#conn-status"); el.textContent = msg || ""; el.hidden = !msg; }
 function connect(url) {
@@ -471,9 +493,9 @@ function onMsg(ev) {
   if (d.error) return;
   if (d.msg_type === "ohlc" && d.ohlc) { const t = streams.get(d.req_id) || bySymbol[d.ohlc.symbol || d.ohlc.underlying_symbol]; if (t) onOhlc(t, d.ohlc); }
   else if (d.msg_type === "proposal_open_contract") onContract(d);
-  else if (d.msg_type === "balance" && d.balance) { if (account) account.balance = d.balance.balance; renderAccount(); }
+  else if (d.msg_type === "balance" && d.balance) onBalance(d);
 }
-function disconnect() { if (ws) { ws.onclose = null; try { ws.close(); } catch (e) {} } ws = null; clearInterval(pingTimer); streams.clear(); }
+function disconnect() { clearInterval(balTimer); restHeaders = null; if (ws) { ws.onclose = null; try { ws.close(); } catch (e) {} } ws = null; clearInterval(pingTimer); streams.clear(); }
 
 async function api(method, path, headers) {
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
@@ -505,16 +527,22 @@ async function start(token) {
       const want = $("#acct-type").value === "real" ? "real" : "demo";
       if (want === "real" && !($("#real-ok").checked && $("#real-word").value.trim().toUpperCase() === "REAL"))
         throw new Error("Para usar a conta real, marque que entende os riscos e digite REAL no campo de confirmação.");
-      const acc = accs.find(a => a.account_type === want && a.status !== "inactive");
-      if (!acc) throw new Error(accs.length ? `Esse token não tem conta ${want} ativa.` : "A Deriv não devolveu nenhuma conta para esse token.");
+      fillPicker(accs);
+      const pickId = $("#acct-pick").value;
+      const pool = accs.filter(a => a.account_type === want && a.status !== "inactive");
+      const acc = pool.find(a => a.account_id === pickId) || pool.sort((a, b) => num(b.balance) - num(a.balance))[0];
+      if (!acc) throw new Error(accs.length ? `A Deriv devolveu ${accs.length} conta(s) para esse token, mas nenhuma ${want} ativa: ${accs.map(a => a.account_id + " (" + a.account_type + ", " + a.status + ")").join(", ")}.` : "A Deriv não devolveu nenhuma conta para esse token.");
       status(`Abrindo a conexão da conta ${want} ${acc.account_id}…`);
       const otp = await api("POST", "/trading/v1/options/accounts/" + encodeURIComponent(acc.account_id) + "/otp", headers);
       const url = otp && otp.data && otp.data.url;
       if (!url || !new RegExp("/ws/" + want).test(url)) throw new Error(`A Deriv não devolveu um endereço de conta ${want}. Por segurança não conectei.`);
       await connect(url);
-      account = { id: acc.account_id, currency: acc.currency || "USD", balance: acc.balance, real: want === "real" };
+      account = { id: acc.account_id, currency: acc.currency || "USD", balance: num(acc.balance), real: want === "real" };
+      restHeaders = headers; clearInterval(balTimer); balTimer = setInterval(refreshBalance, 30000);
+      $("#acct-pick").value = acc.account_id;
+      say(`Saldo informado pela Deriv para ${acc.account_id}: ${fmt(num(acc.balance) || 0, 2)} ${acc.currency || ""}.`);
       if ($("#remember").checked) { store.set("deriv-token", token); store.set("deriv-appid", appId); } else { store.del("deriv-token"); }
-      send({ balance: 1, subscribe: 1 }).catch(() => {});
+      send({ balance: 1, subscribe: 1 }).then(onBalance).catch(e => say(`A Deriv não mandou o saldo pela conexão (${e.message}). Vou consultar a cada 30 s.`));
       for (const t of traders) if (t.open && t.open.id) send({ proposal_open_contract: 1, contract_id: t.open.id, subscribe: 1 }).catch(() => {});
     } else {
       status("Conectando nos preços públicos da Deriv…");
@@ -724,7 +752,7 @@ function setMode(m) {
 }
 function renderAccount() {
   $("#acct-id").textContent = account ? `${account.id} · conta ${account.real ? "REAL" : "demo"}` : mode === "sim" ? "Sem conta: modo simulação" : "Nenhuma conta conectada";
-  $("#acct-bal").textContent = account ? `${fmt(account.balance, 2)} ${account.currency}` : "—";
+  $("#acct-bal").textContent = account ? (Number.isFinite(account.balance) ? `${fmt(account.balance, 2)} ${account.currency}` : "saldo indisponível") : "—";
   const tp = teamPnl(), el = $("#team-pnl"); el.textContent = money(tp); el.style.color = tp > 0 ? "var(--up)" : tp < 0 ? "var(--down)" : "";
 }
 function renderDesks() {
@@ -904,6 +932,7 @@ function syncAcctType() {
   if (!real) { $("#real-ok").checked = false; $("#real-word").value = ""; }
 }
 $("#acct-type").addEventListener("change", syncAcctType);
+$("#acct-pick").addEventListener("change", e => { store.set("deriv-acct", e.target.value); const real = /^Real/.test(e.target.selectedOptions[0].textContent); $("#acct-type").value = real ? "real" : "demo"; syncAcctType(); });
 $("#save-day").addEventListener("click", () => saveDay(false));
 $("#csv-day").addEventListener("click", downloadCsv);
 let clearArmed = 0;
