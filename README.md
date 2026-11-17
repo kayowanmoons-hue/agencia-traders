@@ -1,6 +1,6 @@
 # Agência de Traders
 
-Escritório virtual em forma de jogo: uma coordenadora e seis traders, cada um especialista em um ativo da Deriv, disputam quem consegue mais wins em contratos Sobe/Desce.
+Escritório virtual em forma de jogo: uma coordenadora e nove traders, cada um especialista em um ativo da Deriv, disputam quem consegue mais wins em contratos Sobe/Desce.
 
 - Sem token: preços ao vivo da Deriv e operações simuladas.
 - Com token (PAT) e App ID de um aplicativo do tipo PAT: ordens reais na **conta demo** da Deriv. Contas reais são recusadas.

@@ -441,6 +441,9 @@ const TRADERS = [
   { id: "diego",  name: "Diego Alves",   ini: "DA", color: "#f2d16b", asset: "Ouro",     symbol: "frxXAUUSD", strat: "rsi" },
   { id: "eva",    name: "Eva Lindqvist", ini: "EL", color: "#6fe0c8", asset: "AUD/USD",  symbol: "frxAUDUSD", strat: "momentum" },
   { id: "felipe", name: "Felipe Souza",  ini: "FS", color: "#ff8fb3", asset: "Volatility 75", symbol: "R_75", strat: "intuicao" },
+  { id: "gabriel", name: "Gabriel Nunes", ini: "GN", color: "#9be37a", asset: "USD/JPY",  symbol: "frxUSDJPY", strat: "adaptativo" },
+  { id: "helena", name: "Helena Prado",  ini: "HP", color: "#ffb86b", asset: "Volatility 50", symbol: "R_50", strat: "adaptativo" },
+  { id: "igor",   name: "Igor Matsuda",  ini: "IM", color: "#b7c6ff", asset: "Volatility 25", symbol: "R_25", strat: "adaptativo" },
 ];
 
 const $ = s => document.querySelector(s);
@@ -1087,7 +1090,7 @@ function buildActors() {
     box.appendChild(a); return a;
   };
   traders.forEach((t, i) => mk(t.id, t.color, i, first(t)));
-  mk("coord", "#f2b544", 6, "Marta");
+  mk("coord", "#f2b544", traders.length, "Marta");
 }
 function moveActor(a, x, y, seated, snap) {
   const nx = Math.round(x - 17), ny = Math.round(y - 52);
@@ -1108,7 +1111,7 @@ function placeActors(snap) {
     const a = document.getElementById("actor-" + t.id); if (!a) return;
     if (t.away) {
       const n = awayList.indexOf(t), top = n % 2 === 0, col = Math.floor(n / 2);
-      const x = T.left - R.left + T.width * (0.25 + 0.25 * col), y = top ? T.top - R.top + 8 : T.bottom - R.top + 46;
+      const cols = Math.ceil(awayList.length / 2), x = T.left - R.left + T.width * (col + 1) / (cols + 1), y = top ? T.top - R.top + 8 : T.bottom - R.top + 46;
       moveActor(a, x, y, false, snap);
     } else {
       const st = document.querySelector(`#desk-${t.id} .seat`); if (!st) return;
