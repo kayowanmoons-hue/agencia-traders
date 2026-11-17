@@ -550,7 +550,8 @@ async function start(token) {
       restHeaders = headers; clearInterval(balTimer); balTimer = setInterval(refreshBalance, 30000);
       $("#acct-pick").value = acc.account_id;
       say(`Saldo informado pela Deriv para ${acc.account_id}: ${fmt(num(acc.balance) || 0, 2)} ${acc.currency || ""}.`);
-      if ($("#remember").checked) { store.set("deriv-token", token); store.set("deriv-appid", appId); } else { store.del("deriv-token"); }
+      if ($("#remember").checked) { store.set("deriv-token", token); store.set("deriv-appid", appId); store.set("deriv-real-auto", want === "real"); }
+      else { store.del("deriv-token"); store.del("deriv-real-auto"); }
       send({ balance: 1, subscribe: 1 }).then(onBalance).catch(e => say(`A Deriv não mandou o saldo pela conexão (${e.message}). Vou consultar a cada 30 s.`));
       for (const t of traders) if (t.open && t.open.id) send({ proposal_open_contract: 1, contract_id: t.open.id, subscribe: 1 }).catch(() => {});
     } else {
@@ -942,7 +943,8 @@ function syncAcctType() {
   $("#connect-btn").className = real ? "danger" : "primary";
   if (!real) { $("#real-ok").checked = false; $("#real-word").value = ""; }
 }
-$("#acct-type").addEventListener("change", syncAcctType);
+$("#acct-type").addEventListener("change", () => { syncAcctType(); if ($("#acct-type").value !== "real") store.del("deriv-real-auto"); });
+$("#remember").addEventListener("change", e => { if (!e.target.checked) { store.del("deriv-token"); store.del("deriv-real-auto"); } });
 $("#acct-pick").addEventListener("change", e => { store.set("deriv-acct", e.target.value); const real = /^Real/.test(e.target.selectedOptions[0].textContent); $("#acct-type").value = real ? "real" : "demo"; syncAcctType(); });
 $("#save-day").addEventListener("click", () => saveDay(false));
 $("#csv-day").addEventListener("click", downloadCsv);
@@ -995,8 +997,14 @@ syncAcctType(); renderAll();
 if (restored) say("Página atualizada: placar, operações e mensagens do expediente foram recuperados.");
 else say("Bom dia, equipe! Conectem na Deriv e quem fechar o expediente com mais wins leva o troféu.");
 if (saved && $("#acct-type").value === "real") {
-  start(null);
-  say("A conta real não reconecta sozinha. Confirme o aviso e clique em Conectar conta REAL para voltar a operar.");
+  if (store.get("deriv-real-auto", false)) {
+    $("#real-ok").checked = true; $("#real-word").value = "REAL";
+    say(`Reconectando na CONTA REAL depois de atualizar a página. Entradas ${entriesOn ? "seguem liberadas" : "seguem pausadas"}; use Parar tudo se precisar.`);
+    start(saved);
+  } else {
+    start(null);
+    say("Confirme o aviso e clique em Conectar conta REAL para voltar a operar.");
+  }
 } else start(saved || null);
 })();
 </script>
