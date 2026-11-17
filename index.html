@@ -87,6 +87,9 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .desk.away .seat { border-color: var(--accent); }
 .know { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); }
 .kbar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.desk.studying .kbar i { animation: kpulse .9s ease-in-out; }
+@keyframes kpulse { 50% { filter: brightness(1.6); } }
+#fast[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .kbar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--wait), var(--accent)); transition: width .6s; }
 .know b { font: 600 12px var(--f-mono); color: var(--ink); }
 .monitor { box-shadow: 0 10px 0 -4px var(--desk-edge); }
@@ -245,6 +248,7 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
       <span class="pill" id="mode-pill">Desconectado</span>
       <button id="play" class="primary">Pausar entradas</button>
       <button id="stopall" class="danger" type="button">Parar tudo</button>
+      <button id="fast" type="button" aria-pressed="true">Estudo acelerado: ligado</button>
       <button id="reset">Novo expediente</button>
     </div>
   </header>
@@ -512,7 +516,7 @@ function threshold(t) {
   return Math.max(0.55, top - 0.02);
 }
 function saveBrains() {
-  for (const t of traders) if (t.ready) brains[brainKey(t)] = { stats: t.stats, studied: t.studied || 0, until: t.times[t.times.length - 1] || 0, oldest: t.oldest || 0, trained: t.trained || 0 };
+  for (const t of traders) if (t.ready) brains[brainKey(t)] = { stats: t.stats, studied: t.studied || 0, until: t.times[t.times.length - 1] || 0, oldest: t.oldest || 0, trained: t.trained || 0, exhausted: !!t.exhausted };
   store.set("deriv-mente", brains);
 }
 async function deepStudy(t) {
@@ -520,7 +524,7 @@ async function deepStudy(t) {
   if (!oldest || !ws) return 0;
   const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 1000, end: oldest - 1 });
   const cs = (h.candles || []).filter(c => c.epoch < oldest);
-  if (cs.length < 70) return 0;
+  if (cs.length < 70) { t.exhausted = true; return 0; }
   const keep = { shadow: t.shadow, sig: t.lastSig, r: t.regime }, older = cs.map(c => +c.close);
   t.shadow = [];
   for (let i = 60; i <= older.length; i++) learnStep(t, older.slice(Math.max(0, i - 130), i));
@@ -702,10 +706,10 @@ async function loadTrader(t, info) {
     const last = cs[cs.length - 1]; t.live = last ? +last.close : null; t.curOpen = last ? last.epoch : 0;
     const b = brains[brainKey(t)];
     if (b && b.until && b.stats) {
-      t.stats = b.stats; t.studied = b.studied || 0; t.oldest = b.oldest || 0; t.trained = b.trained || 0;
+      t.stats = b.stats; t.studied = b.studied || 0; t.oldest = b.oldest || 0; t.trained = b.trained || 0; t.exhausted = !!b.exhausted;
       const idx = t.times.findIndex(x => x > b.until);
       study(t, idx < 0 ? t.closes.length + 1 : idx + 1);
-    } else { t.stats = {}; t.studied = 0; t.oldest = 0; t.trained = 0; study(t); }
+    } else { t.stats = {}; t.studied = 0; t.oldest = 0; t.trained = 0; t.exhausted = false; study(t); }
     if (!t.oldest) t.oldest = t.times[0];
     t.ready = true;
   } catch (e) { t.note = e.message; }
@@ -1206,6 +1210,26 @@ setInterval(() => {
   if (!training && mode !== "off" && left <= 0) runTraining(false);
 }, 1000);
 setInterval(saveBrains, 30000);
+/* Estudo acelerado: a cada 2 s um trader (em rodízio) estuda o próximo lote de 1000 velas mais antigas.
+   Um pedido por vez para não sobrecarregar a Deriv; quem já estudou todo o histórico disponível sai do rodízio. */
+let fastOn = store.get("deriv-fast", true), fastI = 0, fastBusy = false;
+function syncFast() { const b = $("#fast"); b.setAttribute("aria-pressed", String(fastOn)); b.textContent = "Estudo acelerado: " + (fastOn ? "ligado" : "desligado"); }
+$("#fast").addEventListener("click", () => { fastOn = !fastOn; store.set("deriv-fast", fastOn); syncFast(); say(fastOn ? "Estudo acelerado ligado: a mesa estuda gráfico antigo a cada 2 segundos." : "Estudo acelerado desligado. Seguem só os treinamentos na sala."); });
+syncFast();
+setInterval(async () => {
+  if (!fastOn || fastBusy || training || mode === "off" || !ws) return;
+  const pool = traders.filter(t => t.ready && !t.exhausted && !t.away); if (!pool.length) return;
+  const t = pool[fastI++ % pool.length]; fastBusy = true;
+  const d = document.getElementById("desk-" + t.id);
+  try {
+    const before = knowledge(t), n = await deepStudy(t);
+    if (d) { d.classList.remove("studying"); void d.offsetWidth; d.classList.add("studying"); }
+    if (!n && t.exhausted) say(`${first(t)} já estudou todo o histórico que a Deriv tem do ${t.asset} em velas de ${tfMin()} min (${Math.round(t.studied).toLocaleString("pt-BR")} sinais avaliados). Agora aprende com as velas novas.`);
+    else if (knowledge(t) >= before + 5) say(`${first(t)} subiu para ${knowledge(t)}% de conhecimento no ${t.asset}.`);
+    if (t.id === selected) updateDetail();
+    renderBoard(); scheduleRender();
+  } catch (e) {} finally { fastBusy = false; }
+}, 2000);
 window.addEventListener("pagehide", saveBrains);
 setInterval(() => { renderTop(); scheduleRender(); }, 1000);
 setInterval(persist, 10000);
