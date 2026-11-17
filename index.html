@@ -227,6 +227,9 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
 .hist tr.sub td { color: var(--muted); font-size: 11px; border-bottom-style: dashed; }
 #confirm-clear { color: var(--down); }
 .evalt { min-width: 760px; } .evalt tr.pick td { color: var(--ink); } .evalt tr.out td { color: var(--muted); } .evalt td.who { color: var(--accent); }
+.goal { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); margin-top: -4px; }
+.gbar { height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; } .gbar i { display: block; height: 100%; width: 0; background: var(--wait); transition: width .6s; }
+.goal.done { color: var(--accent); } .goal.done .gbar i { background: var(--accent); }
 .bubble.tie, .bubble.closed { background: var(--line); color: var(--muted); }
 .learn { font-size: 12px; }
 .learn td, .learn th { text-align: right; vertical-align: top; }
@@ -528,6 +531,8 @@ body { background: radial-gradient(1200px 500px at 70% -10%, #17253a 0%, transpa
 const HIST = 90, SIM_PAYOUT = 0.9;
 /* ---------- Biblioteca de estratégias ---------- */
 const ema = (a, n) => { const k = 2 / (n + 1), o = [a[0]]; for (let i = 1; i < a.length; i++) o.push(a[i] * k + o[i - 1] * (1 - k)); return o; };
+// EMA com cache no próprio array: as estratégias que usam a mesma média não recalculam (análise bem mais rápida)
+const emaC = (p, n) => { const c = p._ema || (p._ema = {}); return c[n] || (c[n] = ema(p, n)); };
 const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))) || 1e-12; };
 function stoch(p, n = 14) { const w = p.slice(-n), hi = Math.max(...w), lo = Math.min(...w); return hi === lo ? 50 : (p[p.length - 1] - lo) / (hi - lo) * 100; }
 function cci(p, n = 20) { const w = p.slice(-n), m = avg(w), md = avg(w.map(x => Math.abs(x - m))) || 1e-12; return (p[p.length - 1] - m) / (0.015 * md); }
@@ -537,11 +542,11 @@ const STRATS = {
   momentum:   { fam: "Tendência", name: "Médias móveis", desc: "Preço acima da média de 10 e média de 10 acima da de 25: compra. O contrário: vende.",
     fn: p => { const l = p[p.length - 1], s = avg(p.slice(-10)), s2 = avg(p.slice(-25)); return l > s && s > s2 ? "up" : l < s && s < s2 ? "down" : null; } },
   ema_cross:  { fam: "Tendência", name: "Cruzamento EMA 9/21", desc: "Entra no sentido do cruzamento da EMA rápida (9) sobre a lenta (21), na vela em que ele acontece.",
-    fn: p => { const s = p.slice(-80), a = ema(s, 9), b = ema(s, 21), n = s.length - 1; return a[n] > b[n] && a[n - 1] <= b[n - 1] ? "up" : a[n] < b[n] && a[n - 1] >= b[n - 1] ? "down" : null; } },
+    fn: p => { const s = p, a = emaC(s, 9), b = emaC(s, 21), n = s.length - 1; return a[n] > b[n] && a[n - 1] <= b[n - 1] ? "up" : a[n] < b[n] && a[n - 1] >= b[n - 1] ? "down" : null; } },
   macd:       { fam: "Tendência", name: "MACD (12, 26, 9)", desc: "Quando o histograma do MACD troca de sinal: para cima compra, para baixo vende.",
-    fn: p => { const s = p.slice(-120), e1 = ema(s, 12), e2 = ema(s, 26), m = e1.map((x, i) => x - e2[i]), g = ema(m, 9), n = m.length - 1, h = m[n] - g[n], h1 = m[n - 1] - g[n - 1]; return h > 0 && h1 <= 0 ? "up" : h < 0 && h1 >= 0 ? "down" : null; } },
+    fn: p => { const s = p, e1 = emaC(s, 12), e2 = emaC(s, 26), m = e1.map((x, i) => x - e2[i]), g = ema(m, 9), n = m.length - 1, h = m[n] - g[n], h1 = m[n - 1] - g[n - 1]; return h > 0 && h1 <= 0 ? "up" : h < 0 && h1 >= 0 ? "down" : null; } },
   pullback:   { fam: "Tendência", name: "Pullback na EMA 21", desc: "Em tendência (EMA 21 acima da 50), espera o preço voltar até a EMA 21 e entra quando ele retoma o sentido.",
-    fn: p => { const s = p.slice(-120), a = ema(s, 21), b = ema(s, 50), n = s.length - 1; if (a[n] > b[n] && s[n - 1] <= a[n - 1] && s[n] > a[n]) return "up"; if (a[n] < b[n] && s[n - 1] >= a[n - 1] && s[n] < a[n]) return "down"; return null; } },
+    fn: p => { const s = p, a = emaC(s, 21), b = emaC(s, 50), n = s.length - 1; if (a[n] > b[n] && s[n - 1] <= a[n - 1] && s[n] > a[n]) return "up"; if (a[n] < b[n] && s[n - 1] >= a[n - 1] && s[n] < a[n]) return "down"; return null; } },
   rompimento: { fam: "Tendência", name: "Rompimento (Donchian 20)", desc: "Fechamento acima da máxima das últimas 20 velas compra; abaixo da mínima vende.",
     fn: p => { const l = p[p.length - 1], w = p.slice(-21, -1); return l > Math.max(...w) ? "up" : l < Math.min(...w) ? "down" : null; } },
   reversao:   { fam: "Reversão", name: "Reversão à média", desc: "Preço a mais de 1,6 desvio da média de 20 velas: entra contra o movimento.",
@@ -568,7 +573,7 @@ const STRATS = {
   roc:        { fam: "Tendência", name: "Momento (ROC 10)", desc: "A variação das últimas 10 velas troca de sinal: para positiva compra, para negativa vende.",
     fn: p => { const n = p.length - 1, a = p[n] - p[n - 10], b = p[n - 1] - p[n - 11]; return a > 0 && b <= 0 ? "up" : a < 0 && b >= 0 ? "down" : null; } },
   tres_emas:  { fam: "Tendência", name: "Três EMAs (8/21/55)", desc: "EMAs 8, 21 e 55 alinhadas e a vela fecha no mesmo sentido: entra a favor da tendência.",
-    fn: p => { const s = p.slice(-130), a = ema(s, 8), b = ema(s, 21), c = ema(s, 55), n = s.length - 1;
+    fn: p => { const s = p, a = emaC(s, 8), b = emaC(s, 21), c = emaC(s, 55), n = s.length - 1;
       if (a[n] > b[n] && b[n] > c[n] && s[n] > s[n - 1]) return "up"; if (a[n] < b[n] && b[n] < c[n] && s[n] < s[n - 1]) return "down"; return null; } },
   squeeze:    { fam: "Volatilidade", name: "Compressão e rompimento", desc: "Mercado espremido (desvio das últimas 20 velas bem menor que o das últimas 100) e o preço rompe a máxima ou mínima de 10 velas.",
     fn: p => { if (p.length < 101) return null; const d20 = sd(p.slice(-21, -1)), d100 = sd(p.slice(-101, -1)); if (d20 > d100 * 0.6) return null;
@@ -674,10 +679,12 @@ function edgeOf(t, k) {
   return null;
 }
 const COVER = 40000; // sinais avaliados para a parte de "volume de estudo" chegar ao máximo
-function knowScore(studied, best) { if (!studied) return 0; const cover = Math.min(1, studied / COVER), edge = Math.max(0, Math.min(1, (best - 0.5) / 0.25)); return Math.round(100 * (0.4 * cover + 0.6 * edge)); }
+const GOAL = 100000; // meta de velas estudadas para virar especialista no ativo
+const candlesOf = t => (t.trained || 0) + (t.closes ? t.closes.length : 0);
+function knowScore(candles, best) { if (!candles) return 0; const cover = Math.min(1, candles / GOAL), edge = Math.max(0, Math.min(1, (best - 0.5) / 0.25)); return Math.round(100 * (0.4 * cover + 0.6 * edge)); }
 function knowledge(t) {
   const b = t.stats ? bestOf(t.stats) : null; // melhor configuração já comprovada, sem depender do cenário deste minuto
-  return knowScore(t.studied || 0, b ? Math.max(0.5, b.c) : 0.5);
+  return knowScore(t.studied ? candlesOf(t) : 0, b ? Math.max(0.5, b.c) : 0.5);
 }
 // Melhor resultado guardado (sem depender do cenário de agora): usado pela Marta para comparar ativos e traders
 function bestOf(stats, nMin = 40, nReg = 25) {
@@ -692,7 +699,7 @@ function study(t, from) {
   t.shadow = [];
   const all = t.closes, start = Math.max(60, from || 60);
   for (let i = start; i <= all.length; i++) learnStep(t, all.slice(Math.max(0, i - 130), i));
-  t.shadow = []; t.regime = regimeOf(all); t.lastSig = signals(all);
+  t.shadow = []; t.regime = regimeOf(all); t.lastSig = signals(all.slice(-130));
 }
 let brains = store.get("deriv-mente", {});
 const brainKey = (t, sym) => t.id + "|" + (sym || t.symbol) + "|" + tfMin();
@@ -715,7 +722,7 @@ async function deepStudy(t) {
   const cs = (h.candles || []).filter(c => c.epoch < oldest);
   if (cs.length < 70) { t.exhausted = true; return 0; }
   const older = cs.map(c => +c.close), tmp = { stats: {}, shadow: [], expC: t.expC, studied: 0 };
-  for (let i = 60; i <= older.length; i++) learnStep(tmp, older.slice(Math.max(0, i - 130), i));
+  for (let i = 60; i <= older.length; i++) { learnStep(tmp, older.slice(Math.max(0, i - 130), i)); if (i % 1000 === 0) await wait(0); }
   // o gráfico antigo SOMA ao que o trader já sabe (com peso menor), sem apagar o que ele aprendeu com o mercado recente
   for (const [k, v] of Object.entries(tmp.stats)) { const st = t.stats[k] || (t.stats[k] = { w: 0, l: 0 }); st.w += v.w * OLD_W; st.l += v.l * OLD_W; }
   t.studied = (t.studied || 0) + tmp.studied;
@@ -1114,6 +1121,7 @@ function renderDesks() {
       <div class="person"><div class="seat" title="Cadeira de ${t.name}"></div><div class="who"><b>${t.name}</b><span class="st"></span></div><div class="bubble"></div></div>
       <div class="why"></div>
       <div class="know" title="Mede quanto gráfico já foi estudado e o melhor acerto encontrado no histórico deste ativo. Não é garantia de resultado."><span>Conhecimento</span><div class="kbar"><i></i></div><b class="kp">0%</b></div>
+      <div class="goal"><span class="gt"></span><div class="gbar"><i></i></div></div>
       <div class="stats"><div class="stat"><b class="w"></b><span>Wins</span></div><div class="stat"><b class="l"></b><span>Loss</span></div><div class="stat"><b class="r"></b><span>Taxa</span></div><div class="stat"><b class="p"></b><span>Saldo</span></div></div>`;
     d.querySelector(".sym").textContent = t.asset;
     d.addEventListener("click", () => { selected = t.id; renderDetail(); updateDesks(); });
@@ -1137,6 +1145,10 @@ function updateDesks() {
     why.textContent = t.strat !== "adaptativo" ? `Modo fixo: ${modeName(t.strat)}` : t.away ? "No treinamento" : (t.why || "Estudando o gráfico para decidir a melhor entrada");
     why.classList.toggle("go", /^Entrou/.test(why.textContent));
     const kn = knowledge(t); d.querySelector(".kbar i").style.width = kn + "%"; d.querySelector(".kp").textContent = kn + "%";
+    const cn = candlesOf(t), gp = Math.min(100, cn / GOAL * 100), gl = d.querySelector(".goal");
+    gl.classList.toggle("done", cn >= GOAL);
+    d.querySelector(".gt").textContent = cn >= GOAL ? `Especialista · ${Math.round(cn / 1000)} mil velas estudadas` : t.exhausted ? `${Math.round(cn / 1000)} mil velas (todo o histórico da Deriv)` : `${Math.round(cn / 1000)} mil de 100 mil velas estudadas`;
+    d.querySelector(".gbar i").style.width = gp + "%";
     d.querySelector(".px").textContent = t.live != null ? fmt(t.live, t.dec) : "—";
     d.querySelector(".st").textContent = `${modeName(t.strat)} · ${m1Of(t) ? "só M1" : "M" + tfMin() + " · exp. " + t.dur + " min"} · ${fmt(stakeOf(t), 2)}`;
     const b = d.querySelector(".bubble");
@@ -1249,7 +1261,7 @@ function updateDetail() {
   $("#d-know").textContent = knowledge(t) + "%";
   $("#d-regime").textContent = REGIMES[t.regime] || "—";
   $("#d-thr").textContent = t.strat === "adaptativo" ? Math.round(threshold(t) * 100) + "%" + ($("#minconf").value === "auto" ? " (automática)" : "") : "só no modo Adaptativa";
-  $("#d-studied").textContent = `${Math.round(t.studied || 0).toLocaleString("pt-BR")} sinais avaliados${t.trained ? ` · +${t.trained.toLocaleString("pt-BR")} velas em treinamento` : ""}`;
+  $("#d-studied").textContent = `${candlesOf(t).toLocaleString("pt-BR")} de ${GOAL.toLocaleString("pt-BR")} velas · ${Math.round(t.studied || 0).toLocaleString("pt-BR")} sinais avaliados`;
   const pct = st => seen(st) ? Math.round(st.w / seen(st) * 100) : null;
   const col = r => r == null ? "" : r >= 56 ? "var(--up)" : r < 45 ? "var(--down)" : "";
   const rows = LEARN.map(k => ({ k, g: t.stats[k], c: t.stats[k + "|" + t.regime] })).sort((a, b) => (hit(b.c) - hit(a.c)) || (hit(b.g) - hit(a.g)));
@@ -1404,6 +1416,7 @@ async function runTraining(manual) {
   const pool = traders.filter(t => t.ready && !t.open).sort((a, b) => knowledge(a) - knowledge(b)).slice(0, 2);
   if (!pool.length) { if (manual) say("Todo mundo está com operação aberta agora. Tento de novo daqui a pouco."); nextTrain = Date.now() + 60000; return; }
   training = true; $("#train-now").disabled = true;
+  while (fastRunning) await wait(200);
   const before = pool.map(knowledge);
   say(`${pool.map(first).join(" e ")}, para a sala de treinamento! Vamos estudar mais gráfico.`);
   pool.forEach(t => t.away = true); placeActors(); updateDesks();
@@ -1431,7 +1444,7 @@ const mkey = sym => sym + "|" + tfMin();
 function knowOf(t, sym) {
   if (t.symbol === sym && t.ready) return knowledge(t);
   const b = brains[brainKey(t, sym)]; if (!b || !b.stats) return 0;
-  const x = bestOf(b.stats); return knowScore(b.studied || 0, x ? x.c : 0.5);
+  const x = bestOf(b.stats); return knowScore(b.studied ? (b.trained || 0) + 1000 : 0, x ? x.c : 0.5);
 }
 async function evalAsset(sym, info) {
   const m = { sym, at: Date.now(), open: !!(info && info.exchange_is_open), ok: false };
@@ -1476,7 +1489,7 @@ async function switchAsset(t, sym, info) {
 function handOver(t) {
   const m = market[mkey(t.symbol)]; if (!m || !m.ok) return false;
   const key = brainKey(t), b = brains[key];
-  if (t.ready) { if ((t.studied || 0) >= m.studied) return false; t.stats = JSON.parse(JSON.stringify(m.stats)); t.studied = m.studied; t.oldest = m.oldest; t.exhausted = false; return true; }
+  if (t.ready) { if ((t.studied || 0) >= m.studied) return false; t.stats = JSON.parse(JSON.stringify(m.stats)); t.studied = m.studied; t.oldest = m.oldest; t.trained = Math.max(t.trained || 0, m.candles || 0); t.exhausted = false; return true; }
   if (b && (b.studied || 0) >= m.studied) return false;
   brains[key] = { stats: JSON.parse(JSON.stringify(m.stats)), studied: m.studied, until: m.until, oldest: m.oldest, trained: m.candles, exhausted: false };
   return true;
@@ -1486,18 +1499,23 @@ async function runEvaluation(manual) {
   if (mode === "off" || !ws) { if (manual) say("Conecte primeiro para a Marta poder avaliar os ativos."); return; }
   if (training) { nextEval = Date.now() + 60000; if (manual) say("Assim que o treinamento acabar a Marta avalia os ativos."); return; }
   evaluating = true; $("#eval-now").disabled = true; renderEval();
+  while (fastRunning) await wait(200);
   const coach = document.getElementById("actor-coord"); coach?.classList.add("talking");
   say(`Marta: vou testar as ${LEARN.length} estratégias em ${POOL.length} ativos da Deriv (até ${EVAL_COUNT.toLocaleString("pt-BR")} velas de ${tfMin()} min cada) e montar a mesa com os melhores.`);
   try {
     const syms = (await send({ active_symbols: "brief" })).active_symbols || [];
     const info = Object.fromEntries(syms.map(s => [s.underlying_symbol || s.symbol, s]));
-    let i = 0;
-    for (const [sym, name] of POOL) {
-      if (mode === "off" || !ws) throw new Error("conexão caiu");
-      setLesson(`Avaliando ativos: ${++i} de ${POOL.length}\n${name}…`);
-      try { market[mkey(sym)] = await evalAsset(sym, info[sym]); } catch (e) { market[mkey(sym)] = { sym, ok: false, why: "erro: " + e.message, at: Date.now() }; }
-      renderEval();
-    }
+    let i = 0, next = 0;
+    // 4 ativos avaliados ao mesmo tempo
+    const worker = async () => {
+      while (next < POOL.length) {
+        const [sym, name] = POOL[next++];
+        if (mode === "off" || !ws) throw new Error("conexão caiu");
+        try { market[mkey(sym)] = await evalAsset(sym, info[sym]); } catch (e) { market[mkey(sym)] = { sym, ok: false, why: "erro: " + e.message, at: Date.now() }; }
+        setLesson(`Avaliando ativos: ${++i} de ${POOL.length}\n${name} pronto`); renderEval();
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
     store.set("deriv-mercado", market);
     // 1) escolhe os melhores ativos abertos (quem já está na mesa ganha uma pequena vantagem para evitar troca à toa)
     const held = new Set(traders.map(t => t.symbol));
@@ -1623,15 +1641,16 @@ function mentor(t) {
   if (!t.ready) return null;
   let src = null, best = t.studied || 0;
   const m = market[mkey(t.symbol)];
-  if (m && m.ok && m.studied > best) { src = { stats: m.stats, studied: m.studied, oldest: m.oldest, who: "da Marta" }; best = m.studied; }
+  if (m && m.ok && m.studied > best) { src = { stats: m.stats, studied: m.studied, oldest: m.oldest, trained: m.candles, who: "da Marta" }; best = m.studied; }
   for (const u of traders) {
     if (u === t) continue;
     const b = brains[brainKey(u, t.symbol)];
-    if (b && b.stats && (b.studied || 0) > best) { src = { stats: b.stats, studied: b.studied, oldest: b.oldest, exhausted: b.exhausted, who: "de " + first(u) }; best = b.studied; }
+    if (b && b.stats && (b.studied || 0) > best) { src = { stats: b.stats, studied: b.studied, oldest: b.oldest, exhausted: b.exhausted, trained: b.trained, who: "de " + first(u) }; best = b.studied; }
   }
   if (!src) return null;
   t.stats = JSON.parse(JSON.stringify(src.stats)); t.studied = src.studied;
   if (src.oldest && (!t.oldest || src.oldest < t.oldest)) { t.oldest = src.oldest; t.exhausted = !!src.exhausted; }
+  if (src.trained) t.trained = Math.max(t.trained || 0, src.trained);
   return src.who;
 }
 const lowest = n => traders.filter(t => t.ready && !t.away).sort((a, b) => knowledge(a) - knowledge(b)).slice(0, n);
@@ -1640,7 +1659,7 @@ async function boost() {
   if (mode === "off" || !ws) { say("Conecte primeiro para a Marta poder dar o reforço."); return; }
   if (boosting || training || evaluating) { say("A Marta está ocupada agora. Tente o reforço daqui a pouco."); return; }
   boosting = true; $("#boost").disabled = true;
-  while (fastBusy) await wait(200);
+  while (fastBusy || fastRunning) await wait(200);
   fastBusy = true;
   const pool = lowest(3);
   say(`Reforço! ${pool.map(t => `${first(t)} (${knowledge(t)}%)`).join(", ")}: estudo extra agora.`);
@@ -1664,22 +1683,32 @@ $("#boost").addEventListener("click", boost);
 function syncFast() { const b = $("#fast"); b.setAttribute("aria-pressed", String(fastOn)); b.textContent = "Estudo acelerado: " + (fastOn ? "ligado" : "desligado"); }
 $("#fast").addEventListener("click", () => { fastOn = !fastOn; store.set("deriv-fast", fastOn); syncFast(); say(fastOn ? "Estudo acelerado ligado: a mesa estuda gráfico antigo a cada 2 segundos." : "Estudo acelerado desligado. Seguem só os treinamentos na sala."); });
 syncFast();
-setInterval(async () => {
-  if (!fastOn || fastBusy || training || evaluating || mode === "off" || !ws) return;
-  const pool = traders.filter(t => t.ready && !t.exhausted && !t.away); if (!pool.length) return;
-  // 3 de cada 4 vezes estuda um dos 3 com menos conhecimento; na outra, segue o rodízio normal
-  const low = [...pool].sort((a, b) => knowledge(a) - knowledge(b)).slice(0, 3);
-  const t = fastI % 4 === 3 ? pool[fastI % pool.length] : low[fastI % low.length]; fastI++; fastBusy = true;
+const FAST_PAR = 3; let fastRunning = 0;
+async function fastOne(t) {
   const d = document.getElementById("desk-" + t.id);
+  t.fastNow = true; fastRunning++;
   try {
-    const before = knowledge(t), n = await deepStudy(t);
+    const before = knowledge(t), c0 = candlesOf(t), n = await deepStudy(t);
+    if (c0 < GOAL && candlesOf(t) >= GOAL) { say(`${first(t)} chegou a ${GOAL.toLocaleString("pt-BR")} velas estudadas no ${t.asset}. Agora é especialista! Melhor estratégia encontrada: ${(() => { const b = bestOf(t.stats); return b ? `${STRATS[b.k].name}, ${Math.round(b.h * 100)}% no histórico` : "nenhuma acima do acaso"; })()}.`); cheer(t); }
     if (d) { d.classList.remove("studying"); void d.offsetWidth; d.classList.add("studying"); }
-    if (!n && t.exhausted) say(`${first(t)} já estudou todo o histórico que a Deriv tem do ${t.asset} em velas de ${tfMin()} min (${Math.round(t.studied).toLocaleString("pt-BR")} sinais avaliados). Agora aprende com as velas novas.`);
+    if (!n && t.exhausted) say(`${first(t)} já estudou todo o histórico que a Deriv tem do ${t.asset} em velas de ${tfMin()} min: ${candlesOf(t).toLocaleString("pt-BR")} velas${candlesOf(t) < GOAL ? `, menos que a meta de ${GOAL.toLocaleString("pt-BR")} porque a Deriv não guarda mais que isso` : ""}. Agora aprende com as velas novas.`);
     else if (knowledge(t) >= before + 5) say(`${first(t)} subiu para ${knowledge(t)}% de conhecimento no ${t.asset}.`);
     if (t.id === selected) updateDetail();
     renderBoard(); scheduleRender();
-  } catch (e) {} finally { fastBusy = false; }
-}, 2000);
+  } catch (e) {} finally { t.fastNow = false; fastRunning--; }
+}
+// Estudo acelerado: até 3 traders estudando ao mesmo tempo, cada um em lotes de 5.000 velas (o máximo que a Deriv manda por pedido)
+setInterval(() => {
+  if (!fastOn || fastBusy || training || evaluating || mode === "off" || !ws) return;
+  const all = traders.filter(t => t.ready && !t.exhausted && !t.away && !t.fastNow);
+  const below = all.filter(t => candlesOf(t) < GOAL), pool = below.length ? below : all;
+  pool.sort((a, b) => candlesOf(a) - candlesOf(b));
+  while (fastRunning < FAST_PAR && pool.length) {
+    // 3 de cada 4 vezes o mais longe da meta; na outra, um do rodízio
+    const t = fastI++ % 4 === 3 ? pool.splice(Math.floor(Math.random() * pool.length), 1)[0] : pool.shift();
+    fastOne(t);
+  }
+}, 400);
 window.addEventListener("pagehide", saveBrains);
 setInterval(() => { renderTop(); renderWall(); scheduleRender(); }, 1000);
 setInterval(persist, 10000);
