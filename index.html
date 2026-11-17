@@ -388,6 +388,7 @@ body { background: radial-gradient(1200px 500px at 70% -10%, #17253a 0%, transpa
         <div class="field"><label for="stoploss">Stop da mesa (USD)</label><input type="number" id="stoploss" min="1" max="500" step="1" value="15"></div>
         <div class="field"><label for="minconf">Confiança mínima para entrar</label><select id="minconf"><option value="auto">Automática (o trader decide)</option><option value="60">60%</option><option value="70">70%</option><option value="80">80%</option><option value="90">90%</option></select></div>
         <div class="field"><label for="tf">Tempo de vela</label><select id="tf"><option value="1">1 min (M1)</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min (M5)</option><option value="15">15 min (M15)</option></select></div>
+        <div class="field"><label for="m1only">Só operações M1 (expiração de 1 min)</label><select id="m1only"><option value="sim">Sim: só entra onde a Deriv aceita 1 min</option><option value="nao">Não: usa o prazo mínimo de cada ativo</option></select></div>
         <div class="field"><label for="daylen">Expediente (min)</label><input type="number" id="daylen" min="10" max="480" step="5" value="60"></div>
       </div>
       <div class="inline">
@@ -886,6 +887,7 @@ function pickRange(list) {
 }
 const pickDuration = list => { const r = pickRange(list); return r ? r.min : null; };
 let durCache = store.get("deriv-dur", {}); // prazo que a Deriv aceitou de verdade, por ativo e vela
+const m1Only = () => ($("#m1only") ? $("#m1only").value : "sim") === "sim";
 const DUR_STEPS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 240, 480, 1440];
 async function loadTrader(t, info) {
   t.ready = false; t.isOpen = info ? !!info.exchange_is_open : false;
@@ -934,6 +936,10 @@ function onCandleClose(t) {
   if (t.cooldown > 0) t.cooldown--;
   if (mode === "off" || !entriesOn || dayEnded || stopHit || t.open || t.cooldown > 0 || !t.ready || t.away) return;
   if (t.ops >= +$("#maxops").value) return;
+  if (m1Only() && (tfMin() !== 1 || t.dur !== 1)) {
+    t.why = tfMin() !== 1 ? "Esperando: modo só M1 ligado, mude o tempo de vela para 1 min" : `Sem entrada: a Deriv não aceita operação de 1 min no ${t.asset} (mínimo ${t.dur} min)`;
+    return;
+  }
   const pick = choose(t, sig); if (!pick) return;
   if (mode === "demo" || mode === "real") placeDemo(t, pick.dir, c, pick.by);
   else { t.open = { dir: pick.dir, by: pick.by, entry: c, left: t.expC, sim: true, at: hhmm() }; t.ops++; }
@@ -951,7 +957,7 @@ async function placeDemo(t, dir, ref, by) {
   t.open = { dir, by, entry: ref, sending: true, at: hhmm() }; t.ops++;
   try {
     // tenta o prazo atual; se a Deriv disser que esse prazo não é oferecido, tenta os próximos prazos permitidos
-    const tries = [t.dur, ...DUR_STEPS.filter(m => m > t.dur && m <= (t.durMax || 1440))].slice(0, 6);
+    const tries = m1Only() ? [1] : [t.dur, ...DUR_STEPS.filter(m => m > t.dur && m <= (t.durMax || 1440))].slice(0, 6);
     let p = null, lastErr = null;
     for (const m of tries) {
       try {
@@ -1286,7 +1292,7 @@ function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() 
 
 /* ---------- Memória da página (sobrevive ao atualizar) ---------- */
 let feedLog = [], logLog = [], persistT = 0;
-const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type", "minconf"];
+const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type", "minconf", "m1only"];
 function persist() {
   clearTimeout(persistT);
   persistT = setTimeout(() => store.set("deriv-estado", {
@@ -1425,7 +1431,7 @@ function renderEval() {
   if (!rows.length) { body.innerHTML = `<tr><td colspan="8" style="color:var(--muted)">${evaluating ? "Avaliando…" : "A Marta avalia os ativos assim que a mesa conectar."}</td></tr>`; return; }
   body.innerHTML = rows.map((x, i) => {
     const t = bySymbol[x.s], m = x.m, bst = m.best;
-    return `<tr class="${t ? "pick" : "out"}"><td>${i + 1}</td><td>${x.name}</td><td>${!m.ok ? m.why || "—" : m.open ? "aberto" : "fechado"}</td>
+    return `<tr class="${t ? "pick" : "out"}"><td>${i + 1}</td><td>${x.name}</td><td>${!m.ok ? m.why || "—" : (m.open ? "aberto" : "fechado") + (m.minDur ? " · mín. " + m.minDur + " min" : "")}</td>
       <td>${bst ? STRATS[bst.k].name + (bst.r ? " · " + REGIMES[bst.r].toLowerCase() : "") : "—"}</td><td>${bst ? Math.round(bst.h * 100) + "% em " + Math.round(bst.n) + " sinais" : "—"}</td>
       <td>${m.ok ? Math.round(m.score * 100) + "%" : "—"}</td><td>${m.candles ? m.candles.toLocaleString("pt-BR") : "—"}</td><td class="who">${t ? t.name : ""}</td></tr>`;
   }).join("");
@@ -1472,11 +1478,12 @@ async function runEvaluation(manual) {
     // 1) escolhe os melhores ativos abertos (quem já está na mesa ganha uma pequena vantagem para evitar troca à toa)
     const held = new Set(traders.map(t => t.symbol));
     const locked = traders.filter(t => t.open || t.away);
-    const avail = POOL.map(([s]) => market[mkey(s)]).filter(m => m && m.ok && m.open)
+    const avail = POOL.map(([s]) => market[mkey(s)]).filter(m => m && m.ok && m.open && (!m1Only() || m.minDur <= 1))
       .map(m => ({ s: m.sym, v: m.score + (held.has(m.sym) ? 0.01 : 0) })).sort((a, b) => b.v - a.v);
     const chosen = new Set(locked.map(t => t.symbol));
     for (const a of avail) { if (chosen.size >= traders.length) break; chosen.add(a.s); }
     if (chosen.size < traders.length) for (const t of traders) if (chosen.size < traders.length) chosen.add(t.symbol);
+    if (m1Only()) say(`Modo só M1: ${avail.length} ativo(s) aceitam operação de 1 min agora (${avail.map(a => POOL_NAME[a.s]).join(", ") || "nenhum"}).`);
     // 2) distribui: cada ativo vai para o trader que mais conhece ele (quem tem operação aberta fica onde está)
     const free = traders.filter(t => !locked.includes(t)), left = [...chosen].filter(s => !locked.some(t => t.symbol === s));
     const pairs = [];
@@ -1561,6 +1568,12 @@ $("#tf").addEventListener("change", async () => {
 });
 ["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
 SETTINGS.forEach(id => $("#" + id).addEventListener("change", persist));
+$("#m1only").addEventListener("change", () => {
+  if (m1Only()) {
+    say("Modo só M1 ligado: os traders só entram com expiração de 1 min, em velas de 1 min. A Marta vai remontar a mesa com ativos que aceitam isso.");
+    if (tfMin() !== 1) { $("#tf").value = "1"; $("#tf").dispatchEvent(new Event("change")); } else nextEval = Date.now() + 1000;
+  } else { say("Modo só M1 desligado: cada trader volta a usar o prazo mínimo do ativo."); for (const t of traders) t.why = null; nextEval = Date.now() + 1000; }
+});
 window.addEventListener("pagehide", () => { clearTimeout(persistT); persistT = 0; persist(); });
 window.addEventListener("resize", () => { scheduleRender(); placeActors(true); });
 $("#train-now").addEventListener("click", () => runTraining(true));
