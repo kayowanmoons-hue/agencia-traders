@@ -85,6 +85,8 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 #train-now { position: absolute; right: 12px; bottom: 10px; font-size: 12px; padding: 5px 10px; }
 .seat { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--desk-edge); background: var(--screen); }
 .desk.away .seat { border-color: var(--accent); }
+.why { font-size: 11px; color: var(--muted); min-height: 1.4em; line-height: 1.35; }
+.why.go { color: var(--accent); }
 .know { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); }
 .kbar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
 .desk.studying .kbar i { animation: kpulse .9s ease-in-out; }
@@ -453,6 +455,12 @@ const store = {
 };
 let trophies = store.get("deriv-trofeus", {});
 const savedStrats = store.get("deriv-modos", {});
+if (!store.get("deriv-mig-auto", false)) {
+  for (const k of Object.keys(savedStrats)) savedStrats[k] = "adaptativo";
+  store.set("deriv-modos", savedStrats);
+  const st = store.get("deriv-estado", null); if (st && st.settings) { st.settings.minconf = "auto"; store.set("deriv-estado", st); }
+  store.set("deriv-mig-auto", true);
+}
 
 /* ---------- Estado ---------- */
 let mode = "off"; // off | sim | demo
@@ -541,9 +549,12 @@ function choose(t, sig) {
   }
   if (t.strat === "adaptativo") {
     const thr = threshold(t);
-    let best = null;
-    for (const k in sig) { const e = edgeOf(t, k); if (e && e.c >= thr && (!best || e.c > best.c)) best = { k, ...e }; }
+    let best = null, cand = null;
+    for (const k in sig) { const e = edgeOf(t, k); if (!e) continue; if (!cand || e.c > cand.c) cand = { k, ...e }; if (e.c >= thr && (!best || e.c > best.c)) best = { k, ...e }; }
     t.lastThr = thr;
+    t.why = best ? `Entrou: ${STRATS[best.k].name} com ${Math.round(best.c * 100)}% de confiança (mínimo ${Math.round(thr * 100)}%)`
+      : cand ? `Esperando: melhor sinal agora é ${STRATS[cand.k].name} com ${Math.round(cand.c * 100)}%, precisa de ${Math.round(thr * 100)}%`
+      : `Esperando: nenhuma estratégia confiável dando sinal (${REGIMES[t.regime].toLowerCase()})`;
     return best ? { dir: sig[best.k], by: `${STRATS[best.k].name} (${Math.round(best.h * 100)}% ${best.src === "cenário" ? "em " + REGIMES[t.regime].toLowerCase() : "geral"}, confiança ${Math.round(best.c * 100)}%)` } : null;
   }
   const d = STRATS[t.strat].ref ? STRATS[t.strat].fn(t.closes) : sig[t.strat];
@@ -888,6 +899,7 @@ function renderDesks() {
     d.className = "desk"; d.id = "desk-" + t.id; d.tabIndex = 0;
     d.innerHTML = `<div class="monitor"><div class="monitor-top"><span class="sym"></span><span class="px"></span></div><canvas></canvas></div>
       <div class="person"><div class="seat" title="Cadeira de ${t.name}"></div><div class="who"><b>${t.name}</b><span class="st"></span></div><div class="bubble"></div></div>
+      <div class="why"></div>
       <div class="know" title="Mede quanto gráfico já foi estudado e o melhor acerto encontrado no histórico deste ativo. Não é garantia de resultado."><span>Conhecimento</span><div class="kbar"><i></i></div><b class="kp">0%</b></div>
       <div class="stats"><div class="stat"><b class="w"></b><span>Wins</span></div><div class="stat"><b class="l"></b><span>Loss</span></div><div class="stat"><b class="r"></b><span>Taxa</span></div><div class="stat"><b class="p"></b><span>Saldo</span></div></div>`;
     d.querySelector(".sym").textContent = t.asset;
@@ -908,6 +920,9 @@ function updateDesks() {
     const busy = mode !== "off" && t.ready && !t.open && !t.flash && entriesOn && !dayEnded && !stopHit && !t.away;
     d.classList.toggle("busy", busy); d.classList.toggle("away", !!t.away);
     const act = document.getElementById("actor-" + t.id); if (act) act.classList.toggle("typing", busy || !!t.open);
+    const why = d.querySelector(".why");
+    why.textContent = t.strat !== "adaptativo" ? `Modo fixo: ${modeName(t.strat)}` : t.away ? "No treinamento" : (t.why || "Estudando o gráfico para decidir a melhor entrada");
+    why.classList.toggle("go", /^Entrou/.test(why.textContent));
     const kn = knowledge(t); d.querySelector(".kbar i").style.width = kn + "%"; d.querySelector(".kp").textContent = kn + "%";
     d.querySelector(".px").textContent = t.live != null ? fmt(t.live, t.dec) : "—";
     d.querySelector(".st").textContent = `${modeName(t.strat)} · M${tfMin()} · exp. ${t.dur} min`;
