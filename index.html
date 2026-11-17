@@ -233,6 +233,123 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
 .learn td:first-child, .learn th:first-child { text-align: left; width: auto; color: var(--ink); font-family: var(--f-body); }
 .learn .dir-up { color: var(--up); } .learn .dir-down { color: var(--down); }
 .log td.res-tie { color: var(--muted); }
+
+/* ===== Visual 2: escritório ilustrado ===== */
+:root { --wood: #6b4a33; --wood-2: #8a6244; --glass: rgba(140, 190, 230, .07); --glow: rgba(242, 181, 68, .10); }
+body { background: radial-gradient(1200px 500px at 70% -10%, #17253a 0%, transparent 60%), var(--bg); }
+.logo { background: linear-gradient(135deg, #ffd27a, var(--accent) 55%, #d98f1f); box-shadow: 0 6px 18px rgba(242,181,68,.25), inset 0 1px 0 rgba(255,255,255,.5); }
+.panel { background: linear-gradient(180deg, #172331, var(--floor)); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.panel h2 { letter-spacing: -.005em; }
+.panel > h2::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); margin-right: 8px; flex: none; }
+.panel > h2 { justify-content: flex-start; } .panel > h2 > .controls, .panel > h2 > .trophy { margin-left: auto; }
+.progress { height: 5px; } .progress i { background: linear-gradient(90deg, var(--wait), var(--accent)); box-shadow: 0 0 12px var(--accent); }
+.msg { background: linear-gradient(180deg, #213041, var(--desk)); border: 1px solid var(--desk-edge); }
+
+/* Piso: carpete com luz do teto */
+.floor { position: relative; overflow: hidden; background-color: #121c26;
+  background-image:
+    radial-gradient(520px 240px at 20% 38%, var(--glow), transparent 70%),
+    radial-gradient(520px 240px at 80% 62%, var(--glow), transparent 70%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-45deg, rgba(0,0,0,.10) 0 2px, transparent 2px 8px);
+  background-size: auto; background-position: 0 0; }
+
+/* Parede com janelas, telão e relógio */
+.wall { position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto; gap: 14px; align-items: stretch;
+  margin: -16px -16px 18px; padding: 14px 16px 18px; background: linear-gradient(180deg, #1b2938, #16222f); border-bottom: 6px solid #0f1821;
+  box-shadow: inset 0 -1px 0 #2b3c4e; }
+.wall::after { content: ""; position: absolute; left: 0; right: 0; bottom: -14px; height: 8px; background: linear-gradient(rgba(0,0,0,.35), transparent); pointer-events: none; }
+.window { position: relative; border-radius: 6px; overflow: hidden; min-height: 92px; border: 4px solid #2c3d4f; box-shadow: inset 0 0 0 1px #0b1118; }
+.window svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.window::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.06) 40%, transparent 52%), linear-gradient(90deg, transparent calc(50% - 2px), #2c3d4f calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px)); }
+.tv { position: relative; display: grid; align-content: center; gap: 6px; padding: 10px 14px; border-radius: 8px; background: radial-gradient(120% 120% at 0 0, #13283a, #070c12);
+  border: 3px solid #0a0f15; box-shadow: 0 0 0 1px #33475b, 0 8px 22px rgba(0,0,0,.45), 0 0 30px rgba(122,167,255,.08); }
+.tv::before { content: "AO VIVO"; position: absolute; top: 8px; right: 10px; font: 600 9px var(--f-mono); letter-spacing: .14em; color: var(--down); }
+.tv::after { content: ""; position: absolute; top: 11px; right: 62px; width: 6px; height: 6px; border-radius: 50%; background: var(--down); animation: blink 1.4s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.tv .label { color: #7f93a8; }
+.tv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tv-stats b { display: block; font: 700 20px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-stats span { font-size: 10px; color: #7f93a8; text-transform: uppercase; letter-spacing: .08em; }
+.wclock { width: 76px; height: 76px; align-self: center; border-radius: 50%; background: #e9eef2; border: 5px solid #2c3d4f; position: relative; box-shadow: 0 6px 14px rgba(0,0,0,.4); }
+.wclock i { position: absolute; left: 50%; bottom: 50%; width: 3px; margin-left: -1.5px; background: #1b2733; border-radius: 2px; transform-origin: 50% 100%; }
+.wclock .h { height: 18px; } .wclock .m { height: 26px; width: 2px; margin-left: -1px; } .wclock .s { height: 28px; width: 1px; margin-left: -.5px; background: var(--down); }
+.wclock::after { content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #1b2733; }
+@media (max-width: 760px) { .wall { grid-template-columns: minmax(0, 1fr) auto; } .wall .window { display: none; } }
+@media (max-width: 420px) { .wclock { display: none; } .wall { grid-template-columns: minmax(0, 1fr); } .tv-stats b { font-size: 16px; } }
+
+/* Faixa de cotações */
+.ticker { position: relative; overflow: hidden; margin: 0 0 18px; border-radius: 8px; background: #070c12; border: 1px solid #22313f; height: 30px;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.tk-track { position: absolute; top: 0; left: 0; display: flex; white-space: nowrap; animation: tk 45s linear infinite; }
+.tk-track span { display: inline-flex; gap: 8px; align-items: center; padding: 0 18px; height: 30px; font: 600 12px var(--f-mono); color: var(--muted); border-right: 1px solid #1a2633; font-variant-numeric: tabular-nums; }
+.tk-track b { color: var(--ink); font-weight: 600; } .tk-track .u { color: var(--up); } .tk-track .d { color: var(--down); }
+@keyframes tk { to { transform: translateX(-50%); } }
+
+/* Plantas */
+.plant { position: absolute; width: 46px; height: 64px; z-index: 2; pointer-events: none; }
+.plant::before { content: ""; position: absolute; left: 9px; bottom: 0; width: 28px; height: 22px; border-radius: 4px 4px 9px 9px; background: linear-gradient(#c8774c, #8f4f2f); box-shadow: inset 0 3px 0 rgba(255,255,255,.15); }
+.plant::after { content: ""; position: absolute; left: 0; bottom: 18px; width: 46px; height: 46px;
+  background: radial-gradient(circle at 50% 70%, #2f8f5b 0 30%, transparent 31%), radial-gradient(circle at 25% 45%, #3fae6e 0 24%, transparent 25%),
+    radial-gradient(circle at 75% 40%, #37a064 0 24%, transparent 25%), radial-gradient(circle at 50% 22%, #4cc07d 0 22%, transparent 23%); filter: drop-shadow(0 2px 0 rgba(0,0,0,.25)); }
+.plant.p1 { right: 10px; top: 10px; }
+@media (max-width: 640px) { .plant { display: none; } } .plant.p2 { left: 4px; bottom: -6px; transform: scale(.9); }
+
+/* Sala de treinamento de vidro */
+.meeting { background: linear-gradient(180deg, var(--glass), transparent), color-mix(in srgb, var(--floor) 70%, var(--bg)); box-shadow: inset 0 0 0 1px rgba(140,190,230,.06), 0 8px 24px rgba(0,0,0,.25); }
+.meeting::before { background: #121c26; border-radius: 4px; }
+.mroom { position: relative; }
+.mtable { position: relative; background: linear-gradient(180deg, var(--wood-2), var(--wood)); box-shadow: inset 0 2px 0 rgba(255,255,255,.18), inset 0 -4px 0 rgba(0,0,0,.2), 0 10px 0 rgba(0,0,0,.28); }
+.mtable::before { content: ""; position: absolute; left: 50%; top: 50%; width: 30%; height: 10px; transform: translate(-50%, -50%); border-radius: 6px; background: rgba(0,0,0,.18); }
+.chairs { position: absolute; inset: 0; pointer-events: none; }
+.chairs i { position: absolute; width: 26px; height: 16px; border-radius: 8px 8px 4px 4px; background: #34475a; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+.wboard { box-shadow: 0 8px 18px rgba(0,0,0,.35); background: linear-gradient(180deg, #f3f6f8, #e2e8ed); }
+
+/* Mesas de trabalho */
+.desk { background: linear-gradient(180deg, #213142 0%, var(--desk) 46%); border-top: 3px solid var(--tc, var(--desk-edge)); box-shadow: 0 10px 22px rgba(0,0,0,.28); overflow: visible; }
+.desk:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(0,0,0,.35); }
+.monitor { border: 3px solid #0b1117; border-radius: 9px; box-shadow: 0 0 0 1px #34485c, 0 0 24px color-mix(in srgb, var(--tc, var(--wait)) 14%, transparent); background: radial-gradient(120% 100% at 0 0, #0f1d2a, var(--screen)); margin-bottom: 14px; }
+.monitor::before { content: ""; position: absolute; left: 50%; bottom: -14px; width: 14px; height: 11px; margin-left: -7px; background: linear-gradient(#3a4c5e, #2a3846); }
+.monitor::after { content: ""; position: absolute; left: 50%; bottom: -17px; width: 64px; height: 5px; margin-left: -32px; border-radius: 3px; background: #3a4c5e; }
+.tabletop { display: flex; justify-content: center; align-items: center; gap: 12px; height: 12px; margin: -6px 0 -2px; }
+.tabletop .kbd { width: 86px; height: 9px; border-radius: 3px; background: repeating-linear-gradient(90deg, #4a5f74 0 6px, #3b4d60 6px 8px); box-shadow: 0 2px 0 #1a2531; }
+.tabletop .mug { width: 11px; height: 12px; border-radius: 2px 2px 4px 4px; background: var(--tc, #ccc); position: relative; opacity: .9; }
+.tabletop .mug::after { content: ""; position: absolute; right: -5px; top: 3px; width: 5px; height: 5px; border: 2px solid var(--tc, #ccc); border-left: 0; border-radius: 0 4px 4px 0; }
+.desk.busy .tabletop .mug::before { content: ""; position: absolute; left: 3px; top: -8px; width: 4px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.25); animation: steam 2s ease-in-out infinite; }
+@keyframes steam { 0% { opacity: 0; transform: translateY(2px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translateY(-5px); } }
+.seat { width: 42px; height: 44px; border-radius: 12px 12px 8px 8px; border: 0; background: linear-gradient(180deg, #2d3d4e, #22303d); box-shadow: inset 0 0 0 2px #344658, 0 4px 0 #18222c; position: relative; }
+.seat::after { content: ""; position: absolute; inset: -4px; border-radius: 14px; border: 2px solid transparent; }
+.desk.away .seat { box-shadow: inset 0 0 0 2px var(--accent), 0 4px 0 #18222c; }
+.desk.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 14px 30px rgba(0,0,0,.35); }
+.crown { box-shadow: 0 4px 12px rgba(242,181,68,.4); }
+.crown::before { content: "★ "; }
+.stats { background: rgba(0,0,0,.16); border-radius: 8px; padding: 6px 2px; }
+
+/* Personagens mais vivos */
+.actor::before { content: ""; position: absolute; left: 4px; bottom: -3px; width: 26px; height: 6px; border-radius: 50%; background: rgba(0,0,0,.35); }
+.actor.seated::before { display: none; }
+.actor .head::before { content: ""; position: absolute; left: 5px; top: 10px; width: 3px; height: 3px; border-radius: 50%; background: #1b1b1b; box-shadow: 7px 0 0 #1b1b1b; animation: eyes 5s infinite; }
+@keyframes eyes { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.1); } }
+.actor .hair { z-index: 1; }
+.actor .arms { position: absolute; left: 0; right: 0; top: 22px; height: 0; }
+.actor .arms i { position: absolute; top: 0; width: 6px; height: 15px; border-radius: 3px; background: inherit; transform-origin: 50% 2px; }
+.actor .arms i:first-child { left: 1px; transform: rotate(12deg); } .actor .arms i:last-child { right: 1px; transform: rotate(-12deg); }
+.actor.typing .arms i:first-child { animation: typeL .32s ease-in-out infinite alternate; }
+.actor.typing .arms i:last-child { animation: typeR .32s ease-in-out infinite alternate-reverse; }
+@keyframes typeL { from { transform: rotate(-30deg); } to { transform: rotate(-45deg); } }
+@keyframes typeR { from { transform: rotate(30deg); } to { transform: rotate(45deg); } }
+.actor.walking .arms i:first-child { animation: swing .36s ease-in-out infinite alternate-reverse; }
+.actor.walking .arms i:last-child { animation: swing .36s ease-in-out infinite alternate; }
+.actor.cheer .arms i:first-child { transform: rotate(160deg); animation: none; } .actor.cheer .arms i:last-child { transform: rotate(-160deg); animation: none; }
+.actor.cheer::after { content: "+1"; position: absolute; left: 50%; top: -18px; transform: translateX(-50%); font: 700 12px var(--f-mono); color: var(--up); animation: rise 1.3s ease-out forwards; }
+@keyframes rise { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -16px); } }
+.actor .tag { box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+
+@media (max-width: 520px) {
+  .floor { padding: 12px; } .wall { margin: -12px -12px 14px; }
+  .desk { padding: 10px; } .who b { font-size: 14px; }
+  header .controls { width: 100%; } header .controls button { flex: 1 1 auto; }
+}
 </style>
 
 </head>
@@ -309,17 +426,26 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
 
   <div class="main">
     <section class="floor" aria-label="Mesas dos traders">
+      <div class="wall" aria-hidden="true">
+        <div class="window"><svg viewBox="0 0 400 100" preserveAspectRatio="xMidYMax slice" id="skyline"></svg></div>
+        <div class="tv"><span class="label">Telão da mesa</span>
+          <div class="tv-stats"><div><b id="tv-wins">0</b><span>Wins hoje</span></div><div><b id="tv-pnl">+0,00</b><span>Resultado</span></div><div><b id="tv-lead">—</b><span>Líder</span></div></div></div>
+        <div class="wclock"><i class="h"></i><i class="m"></i><i class="s"></i></div>
+      </div>
       <div class="floor-head">
         <span class="label" id="floor-label">Velas de 1 min ao vivo · Sobe/Desce</span>
         <span class="label">Clique numa mesa para ver e mudar a estratégia</span>
       </div>
+      <div class="ticker" aria-label="Cotações dos ativos da mesa"><div class="tk-track" id="tk"></div></div>
       <div class="office" id="office">
+        <span class="plant p1" aria-hidden="true"></span>
         <div class="meeting">
           <div class="wboard"><span class="label">Quadro da coordenação</span><p id="lesson">Assim que a mesa conectar, a Marta chama os traders para estudar gráfico aqui.</p><span class="hint" id="next-train"></span></div>
-          <div class="mroom"><div class="mtable" aria-hidden="true"></div></div>
+          <div class="mroom"><div class="chairs" aria-hidden="true"><i style="left:24%;top:calc(50% - 46px)"></i><i style="left:46%;top:calc(50% - 46px)"></i><i style="left:68%;top:calc(50% - 46px)"></i><i style="left:24%;top:calc(50% + 30px)"></i><i style="left:46%;top:calc(50% + 30px)"></i><i style="left:68%;top:calc(50% + 30px)"></i></div><div class="mtable" aria-hidden="true"></div></div>
           <button type="button" id="train-now">Chamar treinamento agora</button>
         </div>
         <div class="desks" id="desks"></div>
+        <span class="plant p2" aria-hidden="true"></span>
         <div class="actors" id="actors" aria-hidden="true"></div>
       </div>
     </section>
@@ -954,8 +1080,9 @@ function renderDesks() {
   const box = $("#desks"); box.innerHTML = "";
   for (const t of traders) {
     const d = document.createElement("article");
-    d.className = "desk"; d.id = "desk-" + t.id; d.tabIndex = 0;
+    d.className = "desk"; d.id = "desk-" + t.id; d.tabIndex = 0; d.style.setProperty("--tc", t.color);
     d.innerHTML = `<div class="monitor"><div class="monitor-top"><span class="sym"></span><span class="px"></span></div><canvas></canvas></div>
+      <div class="tabletop" aria-hidden="true"><i class="kbd"></i><i class="mug"></i></div>
       <div class="person"><div class="seat" title="Cadeira de ${t.name}"></div><div class="who"><b>${t.name}</b><span class="st"></span></div><div class="bubble"></div></div>
       <div class="why"></div>
       <div class="know" title="Mede quanto gráfico já foi estudado e o melhor acerto encontrado no histórico deste ativo. Não é garantia de resultado."><span>Conhecimento</span><div class="kbar"><i></i></div><b class="kp">0%</b></div>
@@ -1104,6 +1231,38 @@ function renderTop() {
   $("#prog").style.width = Math.min(100, el / len * 100) + "%";
   if (!dayEnded && mode !== "off" && el >= len) endDay();
 }
+let skyDone = false;
+function drawSkyline() {
+  const svg = $("#skyline"); if (!svg || skyDone) return; skyDone = true;
+  let out = `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1730"/><stop offset="1" stop-color="#25365a"/></linearGradient></defs><rect width="400" height="100" fill="url(#sky)"/>`;
+  out += `<circle cx="340" cy="22" r="9" fill="#f3e7c4" opacity=".85"/>`;
+  for (let i = 0; i < 22; i++) out += `<circle cx="${(i * 73) % 400}" cy="${(i * 37) % 45 + 4}" r="${i % 3 ? .6 : 1}" fill="#fff" opacity=".6"/>`;
+  let x = 0, seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  while (x < 400) {
+    const w = 18 + rnd() * 26, h = 30 + rnd() * 55, y = 100 - h, c = ["#14213a", "#1a2944", "#101b30"][Math.floor(rnd() * 3)];
+    out += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`;
+    for (let wy = y + 5; wy < 96; wy += 7) for (let wx = x + 3; wx < x + w - 4; wx += 6) if (rnd() < .38) out += `<rect x="${wx}" y="${wy}" width="2.6" height="3" fill="#f2c96b" opacity="${.35 + rnd() * .5}"/>`;
+    x += w + 2;
+  }
+  svg.innerHTML = out;
+}
+function renderWall() {
+  drawSkyline();
+  const tw = traders.reduce((a, t) => a + t.wins, 0), tp = teamPnl(), top = ranking()[0];
+  const w = $("#tv-wins"); if (!w) return;
+  w.textContent = tw; const p = $("#tv-pnl"); p.textContent = money(tp); p.style.color = tp > 0 ? "var(--up)" : tp < 0 ? "var(--down)" : "";
+  $("#tv-lead").textContent = top && top.wins ? first(top) : "—";
+  const d = new Date(), hh = d.getHours() % 12, mm = d.getMinutes(), ss = d.getSeconds();
+  const set = (sel, deg) => { const el = document.querySelector(".wclock " + sel); if (el) el.style.transform = `rotate(${deg}deg)`; };
+  set(".h", hh * 30 + mm / 2); set(".m", mm * 6); set(".s", ss * 6);
+  const tk = $("#tk"); if (!tk) return;
+  const items = traders.map(t => {
+    const a = t.closes.length ? t.closes[Math.max(0, t.closes.length - 60)] : null, v = t.live;
+    const ch = a && v != null ? (v - a) / a * 100 : 0, cls = ch > 0 ? "u" : ch < 0 ? "d" : "";
+    return `<span>${t.asset} <b>${v != null ? fmt(v, t.dec) : "—"}</b> <em class="${cls}">${ch > 0 ? "▲" : ch < 0 ? "▼" : "•"} ${fmt(Math.abs(ch), 2)}%</em> · ${first(t)}</span>`;
+  }).join("");
+  tk.innerHTML = items + items;
+}
 function renderAll() { renderDesks(); renderBoard(); renderDetail(); renderAccount(); renderTop(); }
 let rq = false;
 function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() => { rq = false; updateDesks(); }); }
@@ -1141,7 +1300,7 @@ function buildActors() {
   const box = $("#actors"); if (!box) return; box.innerHTML = "";
   const mk = (id, color, i, name) => {
     const a = document.createElement("div"); a.className = "actor seated"; a.id = "actor-" + id;
-    a.innerHTML = `<div class="bob"><div class="head" style="background:${SKIN[i % SKIN.length]}"><i class="hair" style="background:${HAIR[i % HAIR.length]}"></i></div><div class="torso" style="background:${color}"></div><div class="legs"><i></i><i></i></div><div class="tag">${name}</div></div>`;
+    a.innerHTML = `<div class="bob"><div class="head" style="background:${SKIN[i % SKIN.length]}"><i class="hair" style="background:${HAIR[i % HAIR.length]}"></i></div><div class="torso" style="background:${color}"></div><div class="arms" style="background:${color}"><i></i><i></i></div><div class="legs"><i></i><i></i></div><div class="tag">${name}</div></div>`;
     box.appendChild(a); return a;
   };
   traders.forEach((t, i) => mk(t.id, t.color, i, first(t)));
@@ -1418,7 +1577,7 @@ setInterval(async () => {
   } catch (e) {} finally { fastBusy = false; }
 }, 2000);
 window.addEventListener("pagehide", saveBrains);
-setInterval(() => { renderTop(); scheduleRender(); }, 1000);
+setInterval(() => { renderTop(); renderWall(); scheduleRender(); }, 1000);
 setInterval(persist, 10000);
 
 const saved = store.get("deriv-token", ""); $("#appid").value = store.get("deriv-appid", "");
