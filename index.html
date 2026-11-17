@@ -480,8 +480,9 @@ body { background: radial-gradient(1200px 500px at 70% -10%, #17253a 0%, transpa
 
   <section class="panel" id="eval-panel">
     <h2>Avaliação de ativos da Marta
-      <span class="controls"><button type="button" id="eval-now">Marta avaliar agora</button></span>
+      <span class="controls"><button type="button" id="eval-now">Marta avaliar agora</button><button type="button" id="ext-now">Estudar mercados de fora</button></span>
     </h2>
+    <p class="hint" id="global-note" style="color:var(--ink)">Conhecimento global: ainda vazio.</p>
     <p class="hint" id="eval-note">A Marta testa todas as estratégias em até 5.000 velas de cada ativo da lista, escolhe os melhores e coloca em cada um o trader que mais conhece aquele ativo. Acerto no histórico não garante acerto no futuro.</p>
     <div class="log-wrap" style="max-height:420px">
       <table class="log evalt">
@@ -673,9 +674,15 @@ function learnStep(t, p) {
 const hit = st => st ? (st.w + 1) / (st.w + st.l + 2) : 0.5;
 function conf(st) { const n = st ? st.w + st.l : 0; if (!n) return 0; const z = 1.28, ph = st.w / n; return (ph + z * z / (2 * n) - z * Math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n))) / (1 + z * z / n); }
 const seen = st => st ? st.w + st.l : 0;
+// Conhecimento global: o que todos os mercados estudados (Deriv + mercados de fora) mostram sobre cada estratégia.
+// Entra como "opinião de base" valendo no máximo 30 sinais; o histórico do próprio ativo continua mandando.
+let GLOBAL = { stats: {} };
+const PRIOR_N = 30;
+function mix(own, g) { if (!g || !seen(g)) return own; const k = Math.min(1, PRIOR_N / seen(g)); return { w: (own ? own.w : 0) + g.w * k, l: (own ? own.l : 0) + g.l * k }; }
 function edgeOf(t, k) {
-  const rs = t.stats[k + "|" + t.regime]; if (seen(rs) >= 8) return { h: hit(rs), c: conf(rs), src: "cenário" };
-  const g = t.stats[k]; if (seen(g) >= 12) return { h: hit(g), c: conf(g), src: "geral" };
+  const key = k + "|" + t.regime;
+  const rs = mix(t.stats[key], GLOBAL.stats[key]); if (seen(rs) >= 8) return { h: hit(rs), c: conf(rs), src: "cenário" };
+  const g = mix(t.stats[k], GLOBAL.stats[k]); if (seen(g) >= 12) return { h: hit(g), c: conf(g), src: "geral" };
   return null;
 }
 const COVER = 40000; // sinais avaliados para a parte de "volume de estudo" chegar ao máximo
@@ -1516,7 +1523,8 @@ async function runEvaluation(manual) {
       }
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
-    store.set("deriv-mercado", market);
+    store.set("deriv-mercado", market); buildGlobal();
+    if (EXT.some(([s]) => !ext[ekey(s)] || Date.now() - ext[ekey(s)].at > 6 * 3600000)) setTimeout(() => studyExternal(false), 1500);
     // 1) escolhe os melhores ativos abertos (quem já está na mesa ganha uma pequena vantagem para evitar troca à toa)
     const held = new Set(traders.map(t => t.symbol));
     const locked = traders.filter(t => t.open || t.away);
@@ -1555,6 +1563,61 @@ async function runEvaluation(manual) {
     evaluating = false; $("#eval-now").disabled = false; coach?.classList.remove("talking");
     nextEval = Date.now() + (traders.some(t => m1Of(t) && t.dur !== 1) ? 5 * 60000 : EVAL_EVERY); renderEval(); renderAll();
   }
+}
+
+/* ---------- Mercados de fora (Binance, dados públicos) e conhecimento global ---------- */
+const EXT = [["BTCUSDT", "Bitcoin"], ["ETHUSDT", "Ethereum"], ["BNBUSDT", "BNB"], ["SOLUSDT", "Solana"], ["XRPUSDT", "XRP"], ["EURUSDT", "Euro (cripto)"]];
+const EXT_IV = { 1: "1m", 3: "3m", 5: "5m", 15: "15m" };
+const EXT_HOSTS = ["https://data-api.binance.vision", "https://api.binance.com"];
+let ext = store.get("deriv-fora", {}), extBusy = false;
+const ekey = sym => sym + "|" + tfMin();
+function buildGlobal() {
+  const st = {}, src = {}; let candles = 0;
+  const add = (stats, label, n) => { for (const [k, v] of Object.entries(stats || {})) { const x = st[k] || (st[k] = { w: 0, l: 0 }); x.w += v.w; x.l += v.l; } src[label] = n; candles += n; };
+  for (const [sym, name] of POOL) { const m = market[mkey(sym)]; if (m && m.ok) add(m.stats, name, m.candles || 0); }
+  let nExt = 0; for (const [sym, name] of EXT) { const e = ext[ekey(sym)]; if (e && e.stats) { add(e.stats, name, e.candles || 0); nExt++; } }
+  GLOBAL = { stats: st, candles, sources: src, nExt };
+  const el = $("#global-note");
+  if (el) el.textContent = candles
+    ? `Conhecimento global: ${candles.toLocaleString("pt-BR")} velas de ${Object.keys(src).length} mercados (${Object.keys(src).length - nExt} da Deriv${nExt ? `, ${nExt} de fora: ${EXT.filter(([s]) => ext[ekey(s)]).map(e => e[1]).join(", ")}` : ""}). Todos os traders usam isso como base, mas o histórico do próprio ativo pesa mais.`
+    : "Conhecimento global: ainda vazio. Ele é montado quando a Marta avalia os ativos e estuda os mercados de fora.";
+}
+async function extKlines(sym, iv, endTime) {
+  let last;
+  for (const h of EXT_HOSTS) {
+    try {
+      const r = await fetch(`${h}/api/v3/klines?symbol=${sym}&interval=${iv}&limit=1000${endTime ? "&endTime=" + endTime : ""}`);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return await r.json();
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
+async function studyExternal(manual) {
+  if (extBusy) { if (manual) say("A Marta já está estudando os mercados de fora."); return; }
+  const iv = EXT_IV[tfMin()];
+  if (!iv) { if (manual) say(`Os mercados de fora não têm velas de ${tfMin()} min. Use 1, 3, 5 ou 15 min.`); return; }
+  extBusy = true; $("#ext-now").disabled = true;
+  say(`Marta: estudando velas de mercados de fora da Deriv (${EXT.map(e => e[1]).join(", ")}) para o conhecimento global.`);
+  let ok = 0, fail = "";
+  for (const [sym, name] of EXT) {
+    try {
+      let rows = [], end = 0;
+      for (let pg = 0; pg < 5; pg++) {
+        const k = await extKlines(sym, iv, end || undefined); if (!k.length) break;
+        rows = k.concat(rows); end = k[0][0] - 1; if (k.length < 1000) break;
+      }
+      const closes = rows.map(r => +r[4]).filter(Number.isFinite);
+      if (closes.length < 200) throw new Error("pouco histórico");
+      const b = { stats: {}, shadow: [], expC: 1, studied: 0 };
+      for (let i = 60; i <= closes.length; i++) { learnStep(b, closes.slice(Math.max(0, i - 130), i)); if (i % 1000 === 0) await wait(0); }
+      ext[ekey(sym)] = { stats: b.stats, candles: closes.length, at: Date.now() }; ok++;
+    } catch (e) { fail = fail || e.message; }
+  }
+  store.set("deriv-fora", ext); buildGlobal();
+  say(ok ? `Marta estudou ${ok} mercado(s) de fora e juntou tudo no conhecimento global. ${GLOBAL.candles.toLocaleString("pt-BR")} velas no total.`
+         : `Não consegui baixar velas dos mercados de fora (${fail}). O conhecimento global segue só com os ativos da Deriv.`);
+  extBusy = false; $("#ext-now").disabled = false; renderBoard(); scheduleRender();
 }
 
 /* ---------- Controles ---------- */
@@ -1610,7 +1673,7 @@ $("#tf").addEventListener("change", async () => {
   const syms = (await send({ active_symbols: "brief" }).catch(() => ({}))).active_symbols || [];
   const info = Object.fromEntries(syms.map(s => [s.underlying_symbol || s.symbol, s]));
   await Promise.all(traders.map(t => loadTrader(t, info[t.symbol])));
-  renderAll(); renderEval(); nextEval = Date.now() + 4000;
+  renderAll(); renderEval(); buildGlobal(); nextEval = Date.now() + 4000;
 });
 ["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
 SETTINGS.forEach(id => $("#" + id).addEventListener("change", persist));
@@ -1624,6 +1687,8 @@ window.addEventListener("pagehide", () => { clearTimeout(persistT); persistT = 0
 window.addEventListener("resize", () => { scheduleRender(); placeActors(true); });
 $("#train-now").addEventListener("click", () => runTraining(true));
 $("#eval-now").addEventListener("click", () => runEvaluation(true));
+$("#ext-now").addEventListener("click", () => studyExternal(true));
+buildGlobal();
 renderEval();
 setInterval(() => { if (mode !== "off" && ws && !evaluating && nextEval && Date.now() >= nextEval) runEvaluation(false); }, 5000);
 setInterval(() => {
