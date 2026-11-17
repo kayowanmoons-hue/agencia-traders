@@ -548,8 +548,8 @@ function edgeOf(t, k) {
 const COVER = 40000; // sinais avaliados para a parte de "volume de estudo" chegar ao máximo
 function knowScore(studied, best) { if (!studied) return 0; const cover = Math.min(1, studied / COVER), edge = Math.max(0, Math.min(1, (best - 0.5) / 0.25)); return Math.round(100 * (0.4 * cover + 0.6 * edge)); }
 function knowledge(t) {
-  let best = 0.5; for (const k of LEARN) { const e = edgeOf(t, k); if (e && e.c > best) best = e.c; }
-  return knowScore(t.studied || 0, best);
+  const b = t.stats ? bestOf(t.stats) : null; // melhor configuração já comprovada, sem depender do cenário deste minuto
+  return knowScore(t.studied || 0, b ? Math.max(0.5, b.c) : 0.5);
 }
 // Melhor resultado guardado (sem depender do cenário de agora): usado pela Marta para comparar ativos e traders
 function bestOf(stats, nMin = 40, nReg = 25) {
@@ -579,16 +579,18 @@ function saveBrains() {
   for (const t of traders) if (t.ready) brains[brainKey(t)] = { stats: t.stats, studied: t.studied || 0, until: t.times[t.times.length - 1] || 0, oldest: t.oldest || 0, trained: t.trained || 0, exhausted: !!t.exhausted };
   store.set("deriv-mente", brains);
 }
+const OLD_W = 0.6;
 async function deepStudy(t) {
   const oldest = t.oldest || t.times[0];
   if (!oldest || !ws) return 0;
   const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 5000, end: oldest - 1 });
   const cs = (h.candles || []).filter(c => c.epoch < oldest);
   if (cs.length < 70) { t.exhausted = true; return 0; }
-  const keep = { shadow: t.shadow, sig: t.lastSig, r: t.regime }, older = cs.map(c => +c.close);
-  t.shadow = [];
-  for (let i = 60; i <= older.length; i++) learnStep(t, older.slice(Math.max(0, i - 130), i));
-  t.shadow = keep.shadow; t.lastSig = keep.sig; t.regime = keep.r;
+  const older = cs.map(c => +c.close), tmp = { stats: {}, shadow: [], expC: t.expC, studied: 0 };
+  for (let i = 60; i <= older.length; i++) learnStep(tmp, older.slice(Math.max(0, i - 130), i));
+  // o gráfico antigo SOMA ao que o trader já sabe (com peso menor), sem apagar o que ele aprendeu com o mercado recente
+  for (const [k, v] of Object.entries(tmp.stats)) { const st = t.stats[k] || (t.stats[k] = { w: 0, l: 0 }); st.w += v.w * OLD_W; st.l += v.l * OLD_W; }
+  t.studied = (t.studied || 0) + tmp.studied;
   t.oldest = cs[0].epoch; t.trained = (t.trained || 0) + cs.length;
   return cs.length;
 }
