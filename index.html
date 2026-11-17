@@ -69,7 +69,47 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 
 .desk { position: relative; background: var(--desk); border: 1px solid var(--desk-edge); border-radius: 12px; padding: 12px;
   display: grid; gap: 10px; cursor: pointer; transition: transform .15s, border-color .15s; min-width: 0; }
-.desk:hover { transform: translateY(-2px); border-color: var(--muted); }
+.desk:hover { border-color: var(--muted); }
+/* Escritório */
+.office { position: relative; display: grid; gap: 18px; }
+.meeting { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: stretch; padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--floor) 70%, var(--bg)); }
+.meeting::before { content: "SALA DE TREINAMENTO"; position: absolute; top: -9px; left: 14px; padding: 0 8px; background: var(--floor); font: 600 10px var(--f-mono); letter-spacing: .14em; color: var(--accent); }
+@media (max-width: 640px) { .meeting { grid-template-columns: minmax(0, 1fr); } }
+.wboard { background: #e9eef2; color: #1b2733; border-radius: 8px; border: 4px solid #b9c3cc; padding: 10px 12px 10px; display: grid; gap: 4px; align-content: start; min-height: 120px; margin-right: 34px; }
+.wboard .label { color: #5a6b7b; }
+.wboard p { margin: 0; font: 600 13px/1.4 var(--f-body); white-space: pre-line; }
+.wboard .hint { color: #5a6b7b; }
+.mroom { display: grid; place-items: center; padding-block: 46px; }
+.mtable { width: 86%; height: 54px; border-radius: 28px; background: linear-gradient(#7a5a40, #5f4431); box-shadow: inset 0 2px 0 rgba(255,255,255,.12), 0 6px 0 rgba(0,0,0,.25); }
+#train-now { position: absolute; right: 12px; bottom: 10px; font-size: 12px; padding: 5px 10px; }
+.seat { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--desk-edge); background: var(--screen); }
+.desk.away .seat { border-color: var(--accent); }
+.know { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); }
+.kbar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.kbar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--wait), var(--accent)); transition: width .6s; }
+.know b { font: 600 12px var(--f-mono); color: var(--ink); }
+.monitor { box-shadow: 0 10px 0 -4px var(--desk-edge); }
+.actors { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.actor { position: absolute; left: 0; top: 0; width: 34px; height: 52px; transition: transform 2.4s ease-in-out; will-change: transform; }
+.actor .bob { position: relative; width: 34px; height: 52px; }
+.actor .head { position: relative; width: 20px; height: 20px; margin: 0 auto; border-radius: 50%; box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+.actor .hair { position: absolute; left: -1px; top: -2px; width: 22px; height: 11px; border-radius: 11px 11px 5px 5px; }
+.actor .torso { width: 28px; height: 19px; margin: 1px auto 0; border-radius: 11px 11px 4px 4px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.18); }
+.actor .legs { display: flex; justify-content: center; gap: 4px; }
+.actor .legs i { width: 7px; height: 10px; border-radius: 0 0 3px 3px; background: #2a3442; transform-origin: top center; }
+.actor .tag { position: absolute; left: 50%; top: 54px; transform: translateX(-50%); font: 600 10px var(--f-mono); color: var(--ink); background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 0 4px; border-radius: 4px; white-space: nowrap; }
+.actor.seated .legs, .actor.seated .tag { visibility: hidden; }
+.actor.walking .bob { animation: walkbob .36s ease-in-out infinite; }
+.actor.walking .legs i:first-child { animation: swing .36s ease-in-out infinite alternate; }
+.actor.walking .legs i:last-child { animation: swing .36s ease-in-out infinite alternate-reverse; }
+.actor.typing .head { animation: nod 1.6s ease-in-out infinite; }
+.actor.cheer .bob { animation: cheer .45s ease-out 3; }
+.actor.talking .head::after { content: ""; position: absolute; right: -14px; top: -10px; width: 12px; height: 9px; border-radius: 6px 6px 6px 0; background: var(--accent); animation: nod .8s ease-in-out infinite; }
+@keyframes walkbob { 50% { transform: translateY(-3px); } }
+@keyframes swing { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
+@keyframes nod { 50% { transform: translateY(1.5px); } }
+@keyframes cheer { 40% { transform: translateY(-12px); } }
 .desk.sel { border-color: var(--accent); }
 .desk.flash-win { animation: fw .9s; } .desk.flash-loss { animation: fl .9s; }
 @keyframes fw { 0% { box-shadow: 0 0 0 0 var(--up); } 100% { box-shadow: 0 0 0 14px transparent; } }
@@ -83,7 +123,7 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center;
   font: 800 15px var(--f-display); color: #0e151d; }
 .avatar::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid transparent; }
-.desk.busy .avatar::after { border-color: var(--wait); border-right-color: transparent; animation: spin 1.2s linear infinite; }
+.desk.busy .seat::after { border-color: var(--wait); border-right-color: transparent; animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .who { min-width: 0; }
 .who b { display: block; font: 600 15px var(--f-display); }
@@ -221,6 +261,7 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
         <div class="field"><label for="stake">Valor por operação (USD)</label><input type="number" id="stake" min="0.35" max="10" step="0.05" value="1"></div>
         <div class="field"><label for="maxops">Máx. operações por trader</label><input type="number" id="maxops" min="1" max="50" step="1" value="10"></div>
         <div class="field"><label for="stoploss">Stop da mesa (USD)</label><input type="number" id="stoploss" min="1" max="500" step="1" value="15"></div>
+        <div class="field"><label for="minconf">Confiança mínima para entrar</label><select id="minconf"><option value="auto">Automática (o trader decide)</option><option value="60">60%</option><option value="70">70%</option><option value="80">80%</option><option value="90">90%</option></select></div>
         <div class="field"><label for="tf">Tempo de vela</label><select id="tf"><option value="1">1 min (M1)</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min (M5)</option><option value="15">15 min (M15)</option></select></div>
         <div class="field"><label for="daylen">Expediente (min)</label><input type="number" id="daylen" min="10" max="480" step="5" value="60"></div>
       </div>
@@ -265,7 +306,15 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
         <span class="label" id="floor-label">Velas de 1 min ao vivo · Sobe/Desce</span>
         <span class="label">Clique numa mesa para ver e mudar a estratégia</span>
       </div>
-      <div class="desks" id="desks"></div>
+      <div class="office" id="office">
+        <div class="meeting">
+          <div class="wboard"><span class="label">Quadro da coordenação</span><p id="lesson">Assim que a mesa conectar, a Marta chama os traders para estudar gráfico aqui.</p><span class="hint" id="next-train"></span></div>
+          <div class="mroom"><div class="mtable" aria-hidden="true"></div></div>
+          <button type="button" id="train-now">Chamar treinamento agora</button>
+        </div>
+        <div class="desks" id="desks"></div>
+        <div class="actors" id="actors" aria-hidden="true"></div>
+      </div>
     </section>
 
     <aside class="side">
@@ -280,7 +329,7 @@ button.danger { background: var(--down); border-color: var(--down); color: #2a07
       <div class="panel">
         <h2>Placar de wins <span class="trophy">🏆 = dias vencidos</span></h2>
         <table>
-          <thead><tr><th>#</th><th>Trader</th><th>Wins</th><th>Taxa</th><th>Saldo</th><th>🏆</th></tr></thead>
+          <thead><tr><th>#</th><th>Trader</th><th>Wins</th><th>Taxa</th><th>Saldo</th><th title="Conhecimento do ativo">Conh.</th><th>🏆</th></tr></thead>
           <tbody id="board"></tbody>
         </table>
       </div>
@@ -371,7 +420,7 @@ const STRATS = {
 };
 const LEARN = Object.keys(STRATS).filter(k => !STRATS[k].ref);
 const MODES = {
-  adaptativo: { name: "Adaptativa", desc: "Conhece todas as estratégias, estuda o histórico do próprio ativo e só entra com a que mais está acertando nele (mín. 55% em 6 ou mais sinais)." },
+  adaptativo: { name: "Adaptativa", desc: "Conhece todas as estratégias e estuda milhares de velas do próprio ativo, separando o que funciona em alta, em baixa e em mercado lateral. Só entra quando a confiança da melhor estratégia no cenário de agora passa do mínimo escolhido. Na opção automática, cada trader só aceita as suas melhores configurações. Acertos recentes pesam mais que os antigos." },
   votacao:    { name: "Votação", desc: "Consulta todas as estratégias a cada vela e só entra quando 3 ou mais concordam e nenhuma discorda." },
 };
 const modeName = k => MODES[k] ? MODES[k].name : STRATS[k].name;
@@ -412,21 +461,73 @@ const bySymbol = Object.fromEntries(traders.map(t => [t.symbol, t]));
 
 function rsi(p, n = 14) { let g = 0, l = 0; for (let i = p.length - n; i < p.length; i++) { const d = p[i] - p[i - 1]; if (d > 0) g += d; else l -= d; } return l === 0 ? 100 : 100 - 100 / (1 + g / l); }
 /* ---------- Aprendizado ---------- */
+const REGIMES = { alta: "Tendência de alta", baixa: "Tendência de baixa", lateral: "Mercado lateral" };
+function regimeOf(p) {
+  if (p.length < 60) return "lateral";
+  const s = p.slice(-60), e = ema(s, 50), n = s.length - 1, slope = (e[n] - e[n - 10]) / sd(s.slice(-50));
+  return slope > 0.35 ? "alta" : slope < -0.35 ? "baixa" : "lateral";
+}
 function signals(p) { const o = {}; if (p.length < 60) return o; for (const k of LEARN) { const d = STRATS[k].fn(p); if (d) o[k] = d; } return o; }
+const DECAY = 0.997; // memória recente pesa mais que a antiga
+function bump(t, key, won) { const st = t.stats[key] || (t.stats[key] = { w: 0, l: 0 }); st.w *= DECAY; st.l *= DECAY; won ? st.w++ : st.l++; }
 function learnStep(t, p) {
   const last = p[p.length - 1];
   t.shadow = t.shadow.filter(s => {
     if (--s.left > 0) return true;
-    if (last !== s.entry) { const st = t.stats[s.k] || (t.stats[s.k] = { w: 0, l: 0 }); ((s.dir === "up") === (last > s.entry)) ? st.w++ : st.l++; }
+    if (last !== s.entry) { const won = (s.dir === "up") === (last > s.entry); bump(t, s.k, won); bump(t, s.k + "|" + s.r, won); t.studied = (t.studied || 0) + 1; }
     return false;
   });
-  const sig = signals(p);
-  for (const k in sig) t.shadow.push({ k, dir: sig[k], entry: last, left: t.expC });
-  t.lastSig = sig;
+  const r = regimeOf(p), sig = signals(p);
+  for (const k in sig) t.shadow.push({ k, r, dir: sig[k], entry: last, left: t.expC });
+  t.lastSig = sig; t.regime = r;
   return sig;
 }
 const hit = st => st ? (st.w + 1) / (st.w + st.l + 2) : 0.5;
-function study(t) { t.stats = {}; t.shadow = []; for (let i = 60; i <= t.closes.length; i++) learnStep(t, t.closes.slice(0, i)); }
+function conf(st) { const n = st ? st.w + st.l : 0; if (!n) return 0; const z = 1.28, ph = st.w / n; return (ph + z * z / (2 * n) - z * Math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n))) / (1 + z * z / n); }
+const seen = st => st ? st.w + st.l : 0;
+function edgeOf(t, k) {
+  const rs = t.stats[k + "|" + t.regime]; if (seen(rs) >= 8) return { h: hit(rs), c: conf(rs), src: "cenário" };
+  const g = t.stats[k]; if (seen(g) >= 12) return { h: hit(g), c: conf(g), src: "geral" };
+  return null;
+}
+function knowledge(t) {
+  if (!t.studied) return 0;
+  let best = 0.5; for (const k of LEARN) { const e = edgeOf(t, k); if (e && e.c > best) best = e.c; }
+  const cover = Math.min(1, t.studied / 12000), edge = Math.max(0, Math.min(1, (best - 0.5) / 0.25));
+  return Math.round(100 * (0.4 * cover + 0.6 * edge));
+}
+function study(t, from) {
+  t.shadow = [];
+  const all = t.closes, start = Math.max(60, from || 60);
+  for (let i = start; i <= all.length; i++) learnStep(t, all.slice(Math.max(0, i - 130), i));
+  t.shadow = []; t.regime = regimeOf(all); t.lastSig = signals(all);
+}
+let brains = store.get("deriv-mente", {});
+const brainKey = t => t.id + "|" + tfMin();
+// Confiança mínima: "auto" = o trader só entra nas melhores configurações que ele mesmo encontrou
+function threshold(t) {
+  const v = $("#minconf") ? $("#minconf").value : "auto";
+  if (v !== "auto") return +v / 100;
+  let top = 0; for (const k of LEARN) { const e = edgeOf(t, k); if (e && e.c > top) top = e.c; }
+  return Math.max(0.55, top - 0.02);
+}
+function saveBrains() {
+  for (const t of traders) if (t.ready) brains[brainKey(t)] = { stats: t.stats, studied: t.studied || 0, until: t.times[t.times.length - 1] || 0, oldest: t.oldest || 0, trained: t.trained || 0 };
+  store.set("deriv-mente", brains);
+}
+async function deepStudy(t) {
+  const oldest = t.oldest || t.times[0];
+  if (!oldest || !ws) return 0;
+  const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 1000, end: oldest - 1 });
+  const cs = (h.candles || []).filter(c => c.epoch < oldest);
+  if (cs.length < 70) return 0;
+  const keep = { shadow: t.shadow, sig: t.lastSig, r: t.regime }, older = cs.map(c => +c.close);
+  t.shadow = [];
+  for (let i = 60; i <= older.length; i++) learnStep(t, older.slice(Math.max(0, i - 130), i));
+  t.shadow = keep.shadow; t.lastSig = keep.sig; t.regime = keep.r;
+  t.oldest = cs[0].epoch; t.trained = (t.trained || 0) + cs.length;
+  return cs.length;
+}
 function choose(t, sig) {
   if (t.strat === "votacao") {
     const v = Object.values(sig), up = v.filter(d => d === "up").length, dn = v.length - up;
@@ -435,9 +536,11 @@ function choose(t, sig) {
     return null;
   }
   if (t.strat === "adaptativo") {
+    const thr = threshold(t);
     let best = null;
-    for (const k in sig) { const st = t.stats[k]; if (!st || st.w + st.l < 6) continue; const h = hit(st); if (h >= 0.55 && (!best || h > best.h)) best = { k, h }; }
-    return best ? { dir: sig[best.k], by: `${STRATS[best.k].name} (${Math.round(best.h * 100)}%)` } : null;
+    for (const k in sig) { const e = edgeOf(t, k); if (e && e.c >= thr && (!best || e.c > best.c)) best = { k, ...e }; }
+    t.lastThr = thr;
+    return best ? { dir: sig[best.k], by: `${STRATS[best.k].name} (${Math.round(best.h * 100)}% ${best.src === "cenário" ? "em " + REGIMES[t.regime].toLowerCase() : "geral"}, confiança ${Math.round(best.c * 100)}%)` } : null;
   }
   const d = STRATS[t.strat].ref ? STRATS[t.strat].fn(t.closes) : sig[t.strat];
   return d ? { dir: d, by: STRATS[t.strat].name } : null;
@@ -593,11 +696,18 @@ async function loadTrader(t, info) {
   } catch (e) { t.minDur = 1; }
   t.dur = Math.max(t.minDur, tfMin()); t.expC = Math.max(1, Math.ceil(t.dur / tfMin()));
   try {
-    const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 300, end: "latest", subscribe: 1 }, t);
+    const h = await send({ ticks_history: t.symbol, style: "candles", granularity: tfMin() * 60, count: 1000, end: "latest", subscribe: 1 }, t);
     const cs = h.candles || [];
     t.closes = cs.slice(0, -1).map(c => +c.close); t.times = cs.slice(0, -1).map(c => c.epoch);
     const last = cs[cs.length - 1]; t.live = last ? +last.close : null; t.curOpen = last ? last.epoch : 0;
-    study(t); t.ready = true;
+    const b = brains[brainKey(t)];
+    if (b && b.until && b.stats) {
+      t.stats = b.stats; t.studied = b.studied || 0; t.oldest = b.oldest || 0; t.trained = b.trained || 0;
+      const idx = t.times.findIndex(x => x > b.until);
+      study(t, idx < 0 ? t.closes.length + 1 : idx + 1);
+    } else { t.stats = {}; t.studied = 0; t.oldest = 0; t.trained = 0; study(t); }
+    if (!t.oldest) t.oldest = t.times[0];
+    t.ready = true;
   } catch (e) { t.note = e.message; }
 }
 
@@ -605,7 +715,7 @@ function onOhlc(t, o) {
   const g = tfMin() * 60, ot = o.open_time != null ? +o.open_time : Math.floor(+o.epoch / g) * g;
   if (t.curOpen && ot > t.curOpen && t.live != null) {
     t.closes.push(t.live); t.times.push(t.curOpen);
-    if (t.closes.length > 400) { t.closes.shift(); t.times.shift(); }
+    if (t.closes.length > 1200) { t.closes.shift(); t.times.shift(); }
     t.curOpen = ot; onCandleClose(t);
   } else if (!t.curOpen) t.curOpen = ot;
   t.live = +o.close; t.isOpen = true;
@@ -616,10 +726,10 @@ function onOhlc(t, o) {
 function onCandleClose(t) {
   const c = t.closes[t.closes.length - 1];
   if (t.open && t.open.sim && --t.open.left <= 0) settleSim(t, c);
-  const sig = learnStep(t, t.closes);
+  const sig = learnStep(t, t.closes.slice(-130));
   if (t.id === selected) updateDetail();
   if (t.cooldown > 0) t.cooldown--;
-  if (mode === "off" || !entriesOn || dayEnded || stopHit || t.open || t.cooldown > 0 || !t.ready) return;
+  if (mode === "off" || !entriesOn || dayEnded || stopHit || t.open || t.cooldown > 0 || !t.ready || t.away) return;
   if (t.ops >= +$("#maxops").value) return;
   const pick = choose(t, sig); if (!pick) return;
   if (mode === "demo" || mode === "real") placeDemo(t, pick.dir, c, pick.by);
@@ -664,6 +774,7 @@ function record(t, o, exitP, result, win, kind) {
   t.pnl += result; if (result > 0) t.gain = (t.gain || 0) + result; else if (result < 0) t.lost = (t.lost || 0) - result;
   if (win === true) { t.wins++; t.streak = t.streak > 0 ? t.streak + 1 : 1; }
   else if (win === false) { t.losses++; t.streak = t.streak < 0 ? t.streak - 1 : -1; }
+  if (win) cheer(t);
   t.flash = win === null ? "tie" : win ? "win" : "loss"; t.flashUntil = Date.now() + 4000; t.flashAmt = result;
   const el = document.getElementById("desk-" + t.id);
   if (el && win !== null) { el.classList.remove("flash-win", "flash-loss"); void el.offsetWidth; el.classList.add(win ? "flash-win" : "flash-loss"); }
@@ -772,7 +883,8 @@ function renderDesks() {
     const d = document.createElement("article");
     d.className = "desk"; d.id = "desk-" + t.id; d.tabIndex = 0;
     d.innerHTML = `<div class="monitor"><div class="monitor-top"><span class="sym"></span><span class="px"></span></div><canvas></canvas></div>
-      <div class="person"><div class="avatar" style="background:${t.color}">${t.ini}</div><div class="who"><b>${t.name}</b><span class="st"></span></div><div class="bubble"></div></div>
+      <div class="person"><div class="seat" title="Cadeira de ${t.name}"></div><div class="who"><b>${t.name}</b><span class="st"></span></div><div class="bubble"></div></div>
+      <div class="know" title="Mede quanto gráfico já foi estudado e o melhor acerto encontrado no histórico deste ativo. Não é garantia de resultado."><span>Conhecimento</span><div class="kbar"><i></i></div><b class="kp">0%</b></div>
       <div class="stats"><div class="stat"><b class="w"></b><span>Wins</span></div><div class="stat"><b class="l"></b><span>Loss</span></div><div class="stat"><b class="r"></b><span>Taxa</span></div><div class="stat"><b class="p"></b><span>Saldo</span></div></div>`;
     d.querySelector(".sym").textContent = t.asset;
     d.addEventListener("click", () => { selected = t.id; renderDetail(); updateDesks(); });
@@ -780,6 +892,8 @@ function renderDesks() {
     box.appendChild(d);
   }
   updateDesks();
+  if (!document.getElementById("actor-coord")) buildActors();
+  requestAnimationFrame(() => placeActors(true));
 }
 function updateDesks() {
   const top = ranking()[0], leadId = top.wins > 0 ? top.id : null, now = Date.now();
@@ -787,7 +901,10 @@ function updateDesks() {
     const d = document.getElementById("desk-" + t.id); if (!d) continue;
     if (t.flash && now > t.flashUntil) t.flash = null;
     d.classList.toggle("sel", t.id === selected);
-    d.classList.toggle("busy", mode !== "off" && t.ready && !t.open && !t.flash && entriesOn && !dayEnded && !stopHit);
+    const busy = mode !== "off" && t.ready && !t.open && !t.flash && entriesOn && !dayEnded && !stopHit && !t.away;
+    d.classList.toggle("busy", busy); d.classList.toggle("away", !!t.away);
+    const act = document.getElementById("actor-" + t.id); if (act) act.classList.toggle("typing", busy || !!t.open);
+    const kn = knowledge(t); d.querySelector(".kbar i").style.width = kn + "%"; d.querySelector(".kp").textContent = kn + "%";
     d.querySelector(".px").textContent = t.live != null ? fmt(t.live, t.dec) : "—";
     d.querySelector(".st").textContent = `${modeName(t.strat)} · M${tfMin()} · exp. ${t.dur} min`;
     const b = d.querySelector(".bubble");
@@ -797,6 +914,7 @@ function updateDesks() {
       const left = t.open.sending ? "enviando" : t.open.sim ? t.open.left * tfMin() + " min" : Math.max(0, Math.ceil((t.open.expiry - now) / 1000)) + "s";
       b.textContent = (up ? "▲ SOBE " : "▼ DESCE ") + left;
     }
+    else if (t.away) { b.className = "bubble closed"; b.textContent = "no treinamento"; }
     else if (mode === "off") { b.className = "bubble closed"; b.textContent = "desconectado"; }
     else if (!t.ready) { b.className = "bubble closed"; b.textContent = t.isOpen ? "carregando…" : "mercado fechado"; }
     else if (stopHit || dayEnded) { b.className = "bubble closed"; b.textContent = "parado"; }
@@ -840,7 +958,7 @@ function renderBoard() {
     const tr = document.createElement("tr"); if (i === 0 && t.wins) tr.className = "lead";
     tr.innerHTML = `<td>${i + 1}</td><td><span class="dot" style="background:${t.color}"></span>${first(t)} <span style="color:var(--muted);font-size:11px">${t.asset}</span></td>
       <td>${t.wins}</td><td>${t.wins + t.losses ? Math.round(rate(t) * 100) + "%" : "—"}</td>
-      <td style="color:${t.pnl > 0 ? "var(--up)" : t.pnl < 0 ? "var(--down)" : "inherit"}">${money(t.pnl)}</td><td class="trophy">${trophies[t.id] || 0}</td>`;
+      <td style="color:${t.pnl > 0 ? "var(--up)" : t.pnl < 0 ? "var(--down)" : "inherit"}">${money(t.pnl)}</td><td>${knowledge(t)}%</td><td class="trophy">${trophies[t.id] || 0}</td>`;
     tb.appendChild(tr);
   });
 }
@@ -858,8 +976,13 @@ function renderDetail() {
     <div class="row"><span>Vela / expiração</span><b>M${tfMin()} · ${t.dur} min</b></div>
     <div class="row"><span>Operações no expediente</span><b id="d-ops"></b></div>
     <div class="row"><span>Sequência atual</span><b id="d-streak"></b></div>
+    <div class="row"><span>Conhecimento do ativo</span><b id="d-know"></b></div>
+    <div class="row"><span>Cenário do gráfico agora</span><b id="d-regime"></b></div>
+    <div class="row"><span>Só entra com confiança acima de</span><b id="d-thr"></b></div>
+    <div class="row"><span>Velas estudadas</span><b id="d-studied"></b></div>
+    <p class="hint" style="margin:0">Conhecimento = quanto gráfico já foi estudado + o melhor acerto encontrado no histórico. Mostra preparo, não garante resultado.</p>
     <span class="label" style="margin-top:6px">O que ${first(t)} aprendeu no ${t.asset}</span>
-    <div class="log-wrap" style="max-height:280px"><table class="learn"><thead><tr><th>Estratégia</th><th>Acertos</th><th>Taxa</th><th>Agora</th></tr></thead><tbody id="d-learn"></tbody></table></div>`;
+    <div class="log-wrap" style="max-height:280px"><table class="learn"><thead><tr><th>Estratégia</th><th>Geral</th><th>Cenário</th><th>Agora</th></tr></thead><tbody id="d-learn"></tbody></table></div>`;
   $("#strat-sel").addEventListener("change", e => {
     t.strat = e.target.value; savedStrats[t.id] = t.strat; store.set("deriv-modos", savedStrats);
     $("#strat-desc").textContent = modeDesc(t.strat); say(`${first(t)} agora opera ${t.asset} no modo ${modeName(t.strat)}.`); updateDesks();
@@ -872,12 +995,19 @@ function updateDetail() {
   el.style.color = t.streak > 0 ? "var(--up)" : t.streak < 0 ? "var(--down)" : "";
   $("#d-ops").textContent = `${t.ops} de ${$("#maxops").value}`;
   if (!t.ready) { $("#d-learn").innerHTML = `<tr><td colspan="4" style="color:var(--muted)">Conecte para ${first(t)} estudar o histórico.</td></tr>`; return; }
-  const rows = LEARN.map(k => ({ k, st: t.stats[k] || { w: 0, l: 0 } })).sort((a, b) => hit(b.st) - hit(a.st) || (b.st.w + b.st.l) - (a.st.w + a.st.l));
-  $("#d-learn").innerHTML = rows.map(({ k, st }) => {
-    const n = st.w + st.l, r = n ? Math.round(st.w / n * 100) : null, sg = t.lastSig[k];
-    const col = r == null ? "" : r >= 55 ? "var(--up)" : r < 45 ? "var(--down)" : "";
-    return `<tr><td>${STRATS[k].name}<br><span style="color:var(--muted);font-size:11px">${STRATS[k].fam}</span></td><td>${st.w}/${n}</td>
-      <td style="color:${col}">${r == null ? "—" : r + "%"}</td><td class="${sg ? "dir-" + sg : ""}">${sg ? (sg === "up" ? "▲" : "▼") : "·"}</td></tr>`;
+  $("#d-know").textContent = knowledge(t) + "%";
+  $("#d-regime").textContent = REGIMES[t.regime] || "—";
+  $("#d-thr").textContent = t.strat === "adaptativo" ? Math.round(threshold(t) * 100) + "%" + ($("#minconf").value === "auto" ? " (automática)" : "") : "só no modo Adaptativa";
+  $("#d-studied").textContent = `${Math.round(t.studied || 0).toLocaleString("pt-BR")} sinais avaliados${t.trained ? ` · +${t.trained.toLocaleString("pt-BR")} velas em treinamento` : ""}`;
+  const pct = st => seen(st) ? Math.round(st.w / seen(st) * 100) : null;
+  const col = r => r == null ? "" : r >= 56 ? "var(--up)" : r < 45 ? "var(--down)" : "";
+  const rows = LEARN.map(k => ({ k, g: t.stats[k], c: t.stats[k + "|" + t.regime] })).sort((a, b) => (hit(b.c) - hit(a.c)) || (hit(b.g) - hit(a.g)));
+  $("#d-learn").innerHTML = rows.map(({ k, g, c }) => {
+    const rg = pct(g), rc = pct(c), sg = t.lastSig[k];
+    return `<tr><td>${STRATS[k].name}<br><span style="color:var(--muted);font-size:11px">${STRATS[k].fam}</span></td>
+      <td style="color:${col(rg)}">${rg == null ? "—" : rg + "%"}<br><span style="color:var(--muted);font-size:10px">${Math.round(seen(g))}</span></td>
+      <td style="color:${col(rc)}">${rc == null ? "—" : rc + "%"}<br><span style="color:var(--muted);font-size:10px">${Math.round(seen(c))}</span></td>
+      <td class="${sg ? "dir-" + sg : ""}">${sg ? (sg === "up" ? "▲" : "▼") : "·"}</td></tr>`;
   }).join("");
 }
 function addLogRow(e, restoring) {
@@ -903,7 +1033,7 @@ function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() 
 
 /* ---------- Memória da página (sobrevive ao atualizar) ---------- */
 let feedLog = [], logLog = [], persistT = 0;
-const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type"];
+const SETTINGS = ["stake", "maxops", "stoploss", "daylen", "acct-type", "minconf"];
 function persist() {
   clearTimeout(persistT);
   persistT = setTimeout(() => store.set("deriv-estado", {
@@ -925,6 +1055,88 @@ function restore() {
   for (const m of [...feedLog].reverse()) say(m.text, m.at);
   $("#play").textContent = entriesOn ? "Pausar entradas" : "Retomar entradas";
   return true;
+}
+
+/* ---------- Personagens ---------- */
+const SKIN = ["#f1c7a3", "#c68e64", "#8d5a3b", "#f5d0b0", "#e0ac7e", "#a86b48", "#d9a27a"];
+const HAIR = ["#2b1d14", "#141414", "#6b3f1f", "#d9b26a", "#3a2a1d", "#1d1d1d", "#7a2f1f"];
+function buildActors() {
+  const box = $("#actors"); if (!box) return; box.innerHTML = "";
+  const mk = (id, color, i, name) => {
+    const a = document.createElement("div"); a.className = "actor seated"; a.id = "actor-" + id;
+    a.innerHTML = `<div class="bob"><div class="head" style="background:${SKIN[i % SKIN.length]}"><i class="hair" style="background:${HAIR[i % HAIR.length]}"></i></div><div class="torso" style="background:${color}"></div><div class="legs"><i></i><i></i></div><div class="tag">${name}</div></div>`;
+    box.appendChild(a); return a;
+  };
+  traders.forEach((t, i) => mk(t.id, t.color, i, first(t)));
+  mk("coord", "#f2b544", 6, "Marta");
+}
+function moveActor(a, x, y, seated, snap) {
+  const nx = Math.round(x - 17), ny = Math.round(y - 52);
+  if (+a.dataset.x === nx && +a.dataset.y === ny) { if (!a.classList.contains("walking")) a.classList.toggle("seated", seated); return; }
+  const firstTime = a.dataset.x == null; a.dataset.x = nx; a.dataset.y = ny;
+  if (firstTime || snap || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    a.style.transition = "none"; a.style.transform = `translate(${nx}px, ${ny}px)`; void a.offsetWidth; a.style.transition = "";
+    a.classList.toggle("seated", seated); return;
+  }
+  a.classList.remove("seated"); a.classList.add("walking"); a.style.transform = `translate(${nx}px, ${ny}px)`;
+  clearTimeout(a._t); a._t = setTimeout(() => { a.classList.remove("walking"); a.classList.toggle("seated", seated); }, 2450);
+}
+function placeActors(snap) {
+  const off = $("#office"), tbl = $(".mtable"), bd = $(".wboard"); if (!off || !tbl) return;
+  const R = off.getBoundingClientRect(), T = tbl.getBoundingClientRect();
+  const awayList = traders.filter(t => t.away);
+  traders.forEach(t => {
+    const a = document.getElementById("actor-" + t.id); if (!a) return;
+    if (t.away) {
+      const n = awayList.indexOf(t), top = n % 2 === 0, col = Math.floor(n / 2);
+      const x = T.left - R.left + T.width * (0.25 + 0.25 * col), y = top ? T.top - R.top + 8 : T.bottom - R.top + 46;
+      moveActor(a, x, y, false, snap);
+    } else {
+      const st = document.querySelector(`#desk-${t.id} .seat`); if (!st) return;
+      const b = st.getBoundingClientRect();
+      moveActor(a, b.left - R.left + b.width / 2, b.top - R.top + b.height + 6, true, snap);
+    }
+  });
+  const c = document.getElementById("actor-coord");
+  if (c && bd) { const B = bd.getBoundingClientRect(); moveActor(c, B.right - R.left + 20, B.top - R.top + 70, false, snap); }
+}
+function cheer(t) { const a = document.getElementById("actor-" + t.id); if (!a) return; a.classList.remove("cheer"); void a.offsetWidth; a.classList.add("cheer"); setTimeout(() => a.classList.remove("cheer"), 1500); }
+
+/* ---------- Treinamentos da coordenação ---------- */
+const TRAIN_EVERY = 6 * 60000;
+let nextTrain = Date.now() + 2 * 60000, training = false;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function lessonFor(pool) {
+  return pool.map(t => {
+    let best = null; for (const k of LEARN) { const e = edgeOf(t, k); if (e && (!best || e.h > best.h)) best = { k, ...e }; }
+    return best ? `${first(t)} · ${t.asset}: em ${REGIMES[t.regime].toLowerCase()}, ${STRATS[best.k].name} acerta ${Math.round(best.h * 100)}%.`
+                : `${first(t)} · ${t.asset}: ainda pouca amostra. Hoje é dia de estudar gráfico antigo.`;
+  }).join("\n");
+}
+function setLesson(text) { const el = $("#lesson"); if (el) el.textContent = text; }
+async function runTraining(manual) {
+  if (training) { if (manual) say("Já tem um treinamento acontecendo."); return; }
+  if (mode === "off" || !ws) { if (manual) say("Conecte primeiro para a mesa poder treinar."); return; }
+  const pool = traders.filter(t => t.ready && !t.open).sort((a, b) => knowledge(a) - knowledge(b)).slice(0, 2);
+  if (!pool.length) { if (manual) say("Todo mundo está com operação aberta agora. Tento de novo daqui a pouco."); nextTrain = Date.now() + 60000; return; }
+  training = true; $("#train-now").disabled = true;
+  const before = pool.map(knowledge);
+  say(`${pool.map(first).join(" e ")}, para a sala de treinamento! Vamos estudar mais gráfico.`);
+  pool.forEach(t => t.away = true); placeActors(); updateDesks();
+  document.getElementById("actor-coord")?.classList.add("talking");
+  setLesson("Treinamento agora:\n" + lessonFor(pool));
+  await wait(2600);
+  const got = await Promise.all(pool.map(t => deepStudy(t).catch(() => 0)));
+  setLesson("Depois do estudo:\n" + lessonFor(pool));
+  await wait(6000);
+  pool.forEach((t, i) => say(got[i]
+    ? `${first(t)} estudou mais ${got[i]} velas antigas do ${t.asset}. Conhecimento ${before[i]}% → ${knowledge(t)}%.`
+    : `${first(t)} revisou o que já sabia do ${t.asset}; a Deriv não mandou velas mais antigas desta vez.`));
+  pool.forEach(t => t.away = false); placeActors(); updateDesks();
+  document.getElementById("actor-coord")?.classList.remove("talking");
+  saveBrains(); renderBoard(); updateDetail();
+  await wait(2500);
+  training = false; $("#train-now").disabled = false; nextTrain = Date.now() + TRAIN_EVERY;
 }
 
 /* ---------- Controles ---------- */
@@ -985,7 +1197,16 @@ $("#tf").addEventListener("change", async () => {
 ["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
 SETTINGS.forEach(id => $("#" + id).addEventListener("change", persist));
 window.addEventListener("pagehide", () => { clearTimeout(persistT); persistT = 0; persist(); });
-window.addEventListener("resize", scheduleRender);
+window.addEventListener("resize", () => { scheduleRender(); placeActors(true); });
+$("#train-now").addEventListener("click", () => runTraining(true));
+setInterval(() => {
+  placeActors(true);
+  const left = Math.max(0, nextTrain - Date.now()), el = $("#next-train");
+  if (el) el.textContent = mode === "off" ? "Treinamentos começam quando a mesa conectar." : training ? "Treinamento em andamento…" : `Próximo treinamento em ${Math.ceil(left / 60000)} min`;
+  if (!training && mode !== "off" && left <= 0) runTraining(false);
+}, 1000);
+setInterval(saveBrains, 30000);
+window.addEventListener("pagehide", saveBrains);
 setInterval(() => { renderTop(); scheduleRender(); }, 1000);
 setInterval(persist, 10000);
 
