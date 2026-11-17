@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agência de Traders · Deriv</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: escritório visto de cima. Mesas dos traders à esquerda, sala da coordenação + placar à direita, livro de operações embaixo. Tema escuro único (pregão à noite). */
+:root {
+  color-scheme: dark;
+  --bg: #0e151d;
+  --floor: #141e28;
+  --desk: #1d2a36;
+  --desk-edge: #2a3a49;
+  --screen: #0a1016;
+  --ink: #e7edf2;
+  --muted: #8797a8;
+  --line: #263544;
+  --accent: #f2b544;
+  --accent-ink: #1b1406;
+  --up: #3ccf8e;
+  --down: #ff6b6b;
+  --wait: #7aa7ff;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px; }
+
+/* Cabeçalho */
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.logo { width: 42px; height: 42px; border-radius: 10px; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font: 800 18px var(--f-display); }
+h1 { margin: 0; font: 800 clamp(22px, 3vw, 30px)/1.05 var(--f-display); letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 13px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.clock { font: 600 13px var(--f-mono); color: var(--muted); padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-variant-numeric: tabular-nums; }
+.clock b { color: var(--ink); }
+button, select { font: 500 13px var(--f-body); color: var(--ink); background: var(--desk); border: 1px solid var(--desk-edge);
+  border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, .desk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--desk-edge); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 7px 10px; background: transparent; font-family: var(--f-mono); }
+.seg button[aria-pressed="true"] { background: var(--desk-edge); color: var(--accent); }
+
+.progress { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s linear; }
+
+/* Planta */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 1000px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.floor { background: var(--floor); border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px; background-position: -1px -1px; }
+.floor-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.label { font: 600 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.desks { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+
+.desk { position: relative; background: var(--desk); border: 1px solid var(--desk-edge); border-radius: 12px; padding: 12px;
+  display: grid; gap: 10px; cursor: pointer; transition: transform .15s, border-color .15s; min-width: 0; }
+.desk:hover { transform: translateY(-2px); border-color: var(--muted); }
+.desk.sel { border-color: var(--accent); }
+.desk.flash-win { animation: fw .9s; } .desk.flash-loss { animation: fl .9s; }
+@keyframes fw { 0% { box-shadow: 0 0 0 0 var(--up); } 100% { box-shadow: 0 0 0 14px transparent; } }
+@keyframes fl { 0% { box-shadow: 0 0 0 0 var(--down); } 100% { box-shadow: 0 0 0 14px transparent; } }
+.monitor { background: var(--screen); border: 2px solid var(--desk-edge); border-radius: 8px; padding: 6px 8px 4px; position: relative; }
+.monitor-top { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--f-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.monitor-top .sym { color: var(--accent); font-weight: 600; }
+.monitor-top .ts { color: var(--muted); font-size: 10px; }
+.monitor canvas { display: block; width: 100%; height: 70px; }
+.person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center;
+  font: 800 15px var(--f-display); color: #0e151d; }
+.avatar::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid transparent; }
+.desk.busy .avatar::after { border-color: var(--wait); border-right-color: transparent; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.who { min-width: 0; }
+.who b { display: block; font: 600 15px var(--f-display); }
+.who span { color: var(--muted); font-size: 12px; }
+.bubble { margin-left: auto; font: 600 12px var(--f-mono); padding: 4px 8px; border-radius: 8px; background: var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bubble.up { background: color-mix(in srgb, var(--up) 22%, transparent); color: var(--up); }
+.bubble.down { background: color-mix(in srgb, var(--down) 22%, transparent); color: var(--down); }
+.bubble.win { background: var(--up); color: #062014; }
+.bubble.loss { background: var(--down); color: #2a0707; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-variant-numeric: tabular-nums; }
+.stat { text-align: center; }
+.stat b { display: block; font: 600 16px var(--f-mono); }
+.stat span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.stat .w { color: var(--up); } .stat .l { color: var(--down); }
+.crown { position: absolute; top: -12px; right: 12px; background: var(--accent); color: var(--accent-ink); font: 700 11px var(--f-mono);
+  padding: 2px 8px; border-radius: 99px; letter-spacing: .06em; }
+
+/* Coluna lateral */
+.side { display: grid; gap: 18px; min-width: 0; }
+.panel { background: var(--floor); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.panel h2 { margin: 0 0 10px; font: 700 17px var(--f-display); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.coord { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.coord .avatar { background: var(--accent); }
+.feed { display: grid; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.msg { background: var(--desk); border-radius: 4px 12px 12px 12px; padding: 8px 10px; font-size: 13px; }
+.msg time { display: block; font: 400 11px var(--f-mono); color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+th { font: 600 10px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+th:nth-child(2), td:nth-child(2) { text-align: left; }
+td:first-child, th:first-child { text-align: left; width: 26px; color: var(--muted); font-family: var(--f-mono); }
+tr.lead td { color: var(--accent); }
+td .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.trophy { color: var(--accent); font-family: var(--f-mono); font-size: 12px; }
+
+/* Detalhe */
+.detail-body { display: grid; gap: 10px; }
+.row { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.row span { color: var(--muted); }
+.hint { color: var(--muted); font-size: 12px; margin: 0; }
+
+/* Livro de operações */
+.log-wrap { overflow-x: auto; max-height: 280px; overflow-y: auto; }
+.log { min-width: 620px; font-family: var(--f-mono); font-size: 12px; }
+.log td, .log th { text-align: left; }
+.log td.res-tie { color: var(--muted); }
+.log td.res-win { color: var(--up); font-weight: 600; } .log td.res-loss { color: var(--down); font-weight: 600; }
+.log td.dir-up { color: var(--up); } .log td.dir-down { color: var(--down); }
+
+footer { color: var(--muted); font-size: 12px; max-width: 80ch; }
+
+/* Final do expediente */
+.overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 80%, transparent); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.card { background: var(--floor); border: 1px solid var(--accent); border-radius: 16px; padding: 24px; max-width: 420px; width: 100%; text-align: center; display: grid; gap: 10px; }
+.card h3 { margin: 0; font: 800 26px var(--f-display); color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (max-width: 520px) { .desks { grid-template-columns: minmax(0, 1fr); } }
+
+/* Painel de conexão */
+.conn { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 900px) { .conn { grid-template-columns: minmax(0, 1fr); } }
+.form { display: grid; gap: 10px; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 12px; color: var(--muted); }
+input[type=password], input[type=text], input[type=number] { font: 500 13px var(--f-mono); color: var(--ink); background: var(--screen);
+  border: 1px solid var(--desk-edge); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0; }
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.inline .field { flex: 1 1 120px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 99px; background: var(--line); color: var(--muted); }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.ok { color: var(--up); background: color-mix(in srgb, var(--up) 15%, transparent); }
+.pill.warn { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.pill.bad { color: var(--down); background: color-mix(in srgb, var(--down) 15%, transparent); }
+.acct { display: grid; gap: 8px; align-content: start; }
+.acct .big { font: 700 26px var(--f-mono); font-variant-numeric: tabular-nums; }
+.err { color: var(--down); font-size: 13px; margin: 0; }
+.steps { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+.steps a { color: var(--accent); }
+.bubble.tie, .bubble.closed { background: var(--line); color: var(--muted); }
+.log td.res-tie { color: var(--muted); }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">AT</div>
+      <div>
+        <h1>Agência de Traders · Deriv</h1>
+        <div class="sub">Cada trader opera um ativo da Deriv com contratos Sobe/Desce. Sem token, as operações são simuladas sobre preços ao vivo; com token de conta demo, as ordens vão para a Deriv.</div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="clock">Expediente <b id="day">1</b> · <b id="clock">--:--</b></div>
+      <span class="pill" id="mode-pill">Desconectado</span>
+      <button id="play" class="primary">Pausar entradas</button>
+      <button id="reset">Novo expediente</button>
+    </div>
+  </header>
+  <div class="progress" aria-label="Progresso do expediente"><i id="prog"></i></div>
+
+  <section class="panel conn" aria-label="Conexão com a Deriv">
+    <form class="form" id="conn-form" autocomplete="off">
+      <h2 style="margin:0">Conexão com a Deriv</h2>
+      <div class="field">
+        <label for="token">Token de API (PAT, com permissão de negociar)</label>
+        <input type="password" id="token" placeholder="Cole aqui o token da conta demo">
+      </div>
+      <div class="inline">
+        <div class="field"><label for="stake">Valor por operação (USD)</label><input type="number" id="stake" min="0.35" max="10" step="0.05" value="1"></div>
+        <div class="field"><label for="maxops">Máx. operações por trader</label><input type="number" id="maxops" min="1" max="50" step="1" value="10"></div>
+        <div class="field"><label for="stoploss">Stop da mesa (USD)</label><input type="number" id="stoploss" min="1" max="500" step="1" value="15"></div>
+        <div class="field"><label for="daylen">Expediente (min)</label><input type="number" id="daylen" min="10" max="480" step="5" value="60"></div>
+      </div>
+      <div class="inline">
+        <label class="check"><input type="checkbox" id="remember"> Lembrar o token neste navegador</label>
+        <div class="field" style="flex:1 1 200px"><label for="appid">App ID do seu aplicativo (tipo PAT)</label><input type="text" id="appid" placeholder="ex.: 12345"></div>
+      </div>
+      <div class="inline">
+        <button class="primary" type="submit" id="connect-btn">Conectar conta demo</button>
+        <button type="button" id="sim-btn">Só simular (sem token)</button>
+      </div>
+      <p class="hint" id="conn-status" hidden></p>
+      <p class="err" id="conn-err" hidden></p>
+    </form>
+    <div class="acct">
+      <span class="label">Conta</span>
+      <div id="acct-id" style="font-family:var(--f-mono)">Nenhuma conta conectada</div>
+      <div class="big" id="acct-bal">—</div>
+      <div class="row"><span>Resultado da mesa no expediente</span><b id="team-pnl">0,00</b></div>
+      <ol class="steps">
+        <li>Em <a href="https://developers.deriv.com" target="_blank" rel="noopener">developers.deriv.com</a>, entre com sua conta e registre um aplicativo do tipo <b>PAT</b>. Copie o <b>App ID</b> dele.</li>
+        <li>Crie o token (PAT) com permissão de negociar (trade).</li>
+        <li>Cole o token e o App ID aqui e clique em Conectar. A página só usa a conta demo.</li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="main">
+    <section class="floor" aria-label="Mesas dos traders">
+      <div class="floor-head">
+        <span class="label" id="floor-label">Velas de 1 min ao vivo · Sobe/Desce</span>
+        <span class="label">Clique numa mesa para ver e mudar a estratégia</span>
+      </div>
+      <div class="desks" id="desks"></div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Coordenação</h2>
+        <div class="coord">
+          <div class="avatar">MC</div>
+          <div class="who"><b>Marta Coelho</b><span>Coordenadora da mesa</span></div>
+        </div>
+        <div class="feed" id="feed" aria-live="polite"></div>
+      </div>
+      <div class="panel">
+        <h2>Placar de wins <span class="trophy">🏆 = dias vencidos</span></h2>
+        <table>
+          <thead><tr><th>#</th><th>Trader</th><th>Wins</th><th>Taxa</th><th>Saldo</th><th>🏆</th></tr></thead>
+          <tbody id="board"></tbody>
+        </table>
+      </div>
+      <div class="panel" id="detail">
+        <h2 id="d-name">Mesa</h2>
+        <div class="detail-body" id="d-body"></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="panel">
+    <h2>Livro de operações</h2>
+    <div class="log-wrap">
+      <table class="log">
+        <thead><tr><th>Hora</th><th>Trader</th><th>Ativo</th><th>Direção</th><th>Tipo</th><th>Entrada</th><th>Saída</th><th>Valor</th><th>Resultado</th></tr></thead>
+        <tbody id="log"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Ferramenta de estudo. Opções binárias têm alto risco e não são autorizadas pela CVM no Brasil. Esta página só aceita contas demo da Deriv e tem limite de valor por operação, de operações por trader e stop da mesa. O token fica apenas neste navegador e é enviado só para a Deriv.</footer>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="card">
+    <span class="label">Fim do expediente</span>
+    <h3 id="o-title">—</h3>
+    <p id="o-text" class="hint"></p>
+    <button class="primary" id="o-next">Começar próximo expediente</button>
+  </div>
+</div>
+
+<script>
+(() => {
+const HIST = 90, SIM_PAYOUT = 0.9;
+const STRATS = {
+  momentum:  { name: "Tendência", desc: "Segue o preço: acima da média de 10 e com a média subindo, compra; o contrário, vende." },
+  reversao:  { name: "Reversão à média", desc: "Longe demais da média de 20 velas, entra contra o movimento." },
+  rsi:       { name: "IFR (RSI)", desc: "IFR de 14 velas abaixo de 30 compra, acima de 70 vende. Fora disso espera." },
+  rompimento:{ name: "Rompimento", desc: "Entra quando o fechamento rompe a máxima ou a mínima das últimas 20 velas." },
+  intuicao:  { name: "Intuição", desc: "Cara ou coroa a cada vela. Serve de referência para as outras." },
+};
+const TRADERS = [
+  { id: "ana",    name: "Ana Ribeiro",   ini: "AR", color: "#7aa7ff", asset: "EUR/USD",  symbol: "frxEURUSD", strat: "momentum" },
+  { id: "bruno",  name: "Bruno Takeda",  ini: "BT", color: "#c49bff", asset: "GBP/JPY",  symbol: "frxGBPJPY", strat: "reversao" },
+  { id: "carla",  name: "Carla Mendes",  ini: "CM", color: "#ff9f6e", asset: "Volatility 100", symbol: "R_100", strat: "rompimento" },
+  { id: "diego",  name: "Diego Alves",   ini: "DA", color: "#f2d16b", asset: "Ouro",     symbol: "frxXAUUSD", strat: "rsi" },
+  { id: "eva",    name: "Eva Lindqvist", ini: "EL", color: "#6fe0c8", asset: "AUD/USD",  symbol: "frxAUDUSD", strat: "momentum" },
+  { id: "felipe", name: "Felipe Souza",  ini: "FS", color: "#ff8fb3", asset: "Volatility 75", symbol: "R_75", strat: "intuicao" },
+];
+
+const $ = s => document.querySelector(s);
+const fmt = (n, d) => Number(n).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const money = n => (n >= 0 ? "+" : "−") + fmt(Math.abs(n), 2);
+const hhmm = (d = new Date()) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const avg = a => a.reduce((s, x) => s + x, 0) / a.length;
+const store = {
+  get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+let trophies = store.get("deriv-trofeus", {});
+const savedStrats = store.get("deriv-estrategias", {});
+
+/* ---------- Estado ---------- */
+let mode = "off"; // off | sim | demo
+let account = null, entriesOn = true, dayEnded = false, stopHit = false;
+let day = { n: 1, start: Date.now() };
+let selected = "ana", lastLeader = null;
+const traders = TRADERS.map(t => ({ ...t, strat: savedStrats[t.id] || t.strat, closes: [], times: [], live: null, curOpen: 0,
+  dec: 4, dur: 5, isOpen: true, ready: false, wins: 0, losses: 0, pnl: 0, streak: 0, ops: 0, open: null, cooldown: 1, flash: null, flashUntil: 0 }));
+const bySymbol = Object.fromEntries(traders.map(t => [t.symbol, t]));
+
+function rsi(p, n = 14) { let g = 0, l = 0; for (let i = p.length - n; i < p.length; i++) { const d = p[i] - p[i - 1]; if (d > 0) g += d; else l -= d; } return l === 0 ? 100 : 100 - 100 / (1 + g / l); }
+function decide(strat, p) {
+  if (p.length < 30) return null;
+  const last = p[p.length - 1];
+  if (strat === "momentum") { const s = avg(p.slice(-10)), s2 = avg(p.slice(-25)); return last > s && s > s2 ? "up" : last < s && s < s2 ? "down" : null; }
+  if (strat === "reversao") { const w = p.slice(-20), m = avg(w); const sd = Math.sqrt(avg(w.map(x => (x - m) ** 2))) || 1e-12; const z = (last - m) / sd; return z > 1.6 ? "down" : z < -1.6 ? "up" : null; }
+  if (strat === "rsi") { const r = rsi(p); return r < 30 ? "up" : r > 70 ? "down" : null; }
+  if (strat === "rompimento") { const w = p.slice(-21, -1); return last > Math.max(...w) ? "up" : last < Math.min(...w) ? "down" : null; }
+  return Math.random() < 0.5 ? "up" : "down";
+}
+const rate = t => t.wins + t.losses ? t.wins / (t.wins + t.losses) : 0;
+const ranking = () => [...traders].sort((a, b) => b.wins - a.wins || rate(b) - rate(a) || b.pnl - a.pnl);
+const teamPnl = () => traders.reduce((s, t) => s + t.pnl, 0);
+const stake = () => Math.min(10, Math.max(0.35, +$("#stake").value || 1));
+const first = t => t.name.split(" ")[0];
+
+/* ---------- Conexão Deriv (API nova: api.derivws.com) ---------- */
+const API = "https://api.derivws.com", WS_PUBLIC = "wss://api.derivws.com/trading/v1/options/ws/public";
+let ws = null, reqId = 0, pending = new Map(), streams = new Map(), pingTimer = null;
+function status(msg) { const el = $("#conn-status"); el.textContent = msg || ""; el.hidden = !msg; }
+function connect(url) {
+  return new Promise((res, rej) => {
+    let done = false;
+    const to = setTimeout(() => { if (!done) { done = true; try { ws.close(); } catch (e) {} rej(new Error("A Deriv não respondeu em 15 segundos. Confira a internet e tente de novo.")); } }, 15000);
+    try { ws = new WebSocket(url); }
+    catch (e) { clearTimeout(to); return rej(new Error("O navegador bloqueou a conexão. Abra o arquivo direto no Chrome ou Edge.")); }
+    ws.onopen = () => { if (done) return; done = true; clearTimeout(to); clearInterval(pingTimer); pingTimer = setInterval(() => send({ ping: 1 }).catch(() => {}), 30000); res(); };
+    ws.onerror = () => { if (done) return; done = true; clearTimeout(to); rej(new Error("Não consegui abrir a conexão com a Deriv. Abra o arquivo direto no Chrome ou Edge e confira a internet.")); };
+    ws.onclose = () => { clearInterval(pingTimer); for (const p of pending.values()) p.rej(new Error("Conexão encerrada")); pending.clear(); if (mode !== "off") { setMode("off"); say("Caímos da Deriv. Clique em Conectar de novo."); } };
+    ws.onmessage = onMsg;
+  });
+}
+function send(obj, tag) {
+  if (!ws || ws.readyState !== 1) return Promise.reject(new Error("Sem conexão"));
+  const id = ++reqId; obj.req_id = id; if (tag) streams.set(id, tag);
+  ws.send(JSON.stringify(obj));
+  return new Promise((res, rej) => {
+    pending.set(id, { res, rej });
+    setTimeout(() => { if (pending.has(id)) { pending.delete(id); rej(new Error("sem resposta da Deriv para " + Object.keys(obj)[0])); } }, 20000);
+  });
+}
+function onMsg(ev) {
+  let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+  const p = pending.get(d.req_id);
+  if (p) { pending.delete(d.req_id); d.error ? p.rej(new Error(d.error.message || d.error.code)) : p.res(d); }
+  if (d.error) return;
+  if (d.msg_type === "ohlc" && d.ohlc) { const t = streams.get(d.req_id) || bySymbol[d.ohlc.symbol || d.ohlc.underlying_symbol]; if (t) onOhlc(t, d.ohlc); }
+  else if (d.msg_type === "proposal_open_contract") onContract(d);
+  else if (d.msg_type === "balance" && d.balance) { if (account) account.balance = d.balance.balance; renderAccount(); }
+}
+function disconnect() { if (ws) { ws.onclose = null; try { ws.close(); } catch (e) {} } ws = null; clearInterval(pingTimer); streams.clear(); }
+
+async function api(method, path, headers) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+  let r;
+  try { r = await fetch(API + path, { method, headers, signal: ctl.signal }); }
+  catch (e) { throw new Error("Não consegui falar com a API da Deriv (" + (e.name === "AbortError" ? "tempo esgotado" : "rede ou bloqueio do navegador") + ")."); }
+  finally { clearTimeout(to); }
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) {
+    const m = (j.errors && j.errors[0] && j.errors[0].message) || r.statusText;
+    if (r.status === 401) throw new Error("A Deriv recusou o token (401: " + m + "). Confira se o App ID é de um aplicativo do tipo PAT e se o token tem permissão de negociar.");
+    throw new Error("Erro da Deriv " + r.status + ": " + m);
+  }
+  return j;
+}
+
+async function start(token) {
+  $("#conn-err").hidden = true;
+  const appId = ($("#appid").value || "").trim();
+  disconnect(); setMode("off");
+  $("#connect-btn").disabled = $("#sim-btn").disabled = true;
+  try {
+    account = null;
+    if (token) {
+      if (!appId) throw new Error("Falta o App ID. Registre um aplicativo do tipo PAT em developers.deriv.com e cole o número aqui.");
+      const headers = { Authorization: "Bearer " + token, "Deriv-App-ID": appId };
+      status("Buscando suas contas na Deriv…");
+      const accs = (await api("GET", "/trading/v1/options/accounts", headers)).data || [];
+      const demo = accs.find(a => a.account_type === "demo" && a.status !== "inactive");
+      if (!demo) throw new Error(accs.length ? "Esse token não tem conta demo ativa. Por segurança este escritório só opera na demo." : "A Deriv não devolveu nenhuma conta para esse token.");
+      status("Abrindo a conexão da conta demo " + demo.account_id + "…");
+      const otp = await api("POST", "/trading/v1/options/accounts/" + encodeURIComponent(demo.account_id) + "/otp", headers);
+      const url = otp && otp.data && otp.data.url;
+      if (!url || !/\/ws\/demo/.test(url)) throw new Error("A Deriv não devolveu um endereço de conta demo. Por segurança não conectei.");
+      await connect(url);
+      account = { id: demo.account_id, currency: demo.currency || "USD", balance: demo.balance };
+      if ($("#remember").checked) { store.set("deriv-token", token); store.set("deriv-appid", appId); } else { store.del("deriv-token"); }
+      send({ balance: 1, subscribe: 1 }).catch(() => {});
+    } else {
+      status("Conectando nos preços públicos da Deriv…");
+      await connect(WS_PUBLIC);
+    }
+    if (appId) store.set("deriv-appid", appId);
+    status("Carregando ativos e gráficos…");
+    const syms = (await send({ active_symbols: "brief" })).active_symbols || [];
+    const info = Object.fromEntries(syms.map(s => [s.underlying_symbol || s.symbol, s]));
+    await Promise.all(traders.map(t => loadTrader(t, info[t.symbol])));
+    setMode(account ? "demo" : "sim"); status("");
+    say(account
+      ? `Conectados na conta demo ${account.id}. Cada um opera ${fmt(stake(), 2)} ${account.currency} por entrada, no máximo ${$("#maxops").value} operações. Boa caça aos wins!`
+      : "Preços ao vivo da Deriv chegando. Por enquanto é treino: operações simuladas, sem ordem na corretora.");
+  } catch (e) {
+    status(""); disconnect(); $("#conn-err").textContent = e.message; $("#conn-err").hidden = false;
+  } finally { $("#connect-btn").disabled = $("#sim-btn").disabled = false; renderAll(); }
+}
+
+function pickDuration(list) {
+  // procura Sobe/Desce (CALL) intradiário e escolhe 5 min ou o mínimo permitido
+  const toMin = s => { const m = /^(\d+)([tsmhd])$/.exec(s || ""); if (!m) return null; const n = +m[1]; return { s: n / 60, m: n, h: n * 60, d: n * 1440, t: null }[m[2]]; };
+  const c = list.filter(x => x.contract_type === "CALL" && x.barrier_category === "euro_atm" && x.expiry_type === "intraday")
+                .map(x => ({ min: toMin(x.min_contract_duration), max: toMin(x.max_contract_duration) })).filter(x => x.min != null);
+  if (!c.length) return null;
+  const lo = Math.max(1, Math.ceil(Math.min(...c.map(x => x.min))));
+  return Math.max(5, lo);
+}
+async function loadTrader(t, info) {
+  t.ready = false; t.isOpen = info ? !!info.exchange_is_open : false;
+  const pip = info && (info.pip_size ?? info.pip); if (pip) t.dec = Math.max(0, Math.round(-Math.log10(pip)));
+  try {
+    const cf = await send({ contracts_for: t.symbol, currency: account ? account.currency : "USD" });
+    t.dur = pickDuration(cf.contracts_for.available) || 5;
+  } catch (e) { t.dur = 5; }
+  try {
+    const h = await send({ ticks_history: t.symbol, style: "candles", granularity: 60, count: 150, end: "latest", subscribe: 1 }, t);
+    const cs = h.candles || [];
+    t.closes = cs.slice(0, -1).map(c => +c.close); t.times = cs.slice(0, -1).map(c => c.epoch);
+    const last = cs[cs.length - 1]; t.live = last ? +last.close : null; t.curOpen = last ? last.epoch : 0;
+    t.ready = true;
+  } catch (e) { t.note = e.message; }
+}
+
+function onOhlc(t, o) {
+  const ot = o.open_time != null ? +o.open_time : Math.floor(+o.epoch / 60) * 60;
+  if (t.curOpen && ot > t.curOpen && t.live != null) {
+    t.closes.push(t.live); t.times.push(t.curOpen);
+    if (t.closes.length > 400) { t.closes.shift(); t.times.shift(); }
+    t.curOpen = ot; onCandleClose(t);
+  } else if (!t.curOpen) t.curOpen = ot;
+  t.live = +o.close; t.isOpen = true;
+  scheduleRender();
+}
+
+/* ---------- Regras do escritório ---------- */
+function onCandleClose(t) {
+  const c = t.closes[t.closes.length - 1];
+  if (t.open && t.open.sim && --t.open.left <= 0) settleSim(t, c);
+  if (t.cooldown > 0) t.cooldown--;
+  if (mode === "off" || !entriesOn || dayEnded || stopHit || t.open || t.cooldown > 0 || !t.ready) return;
+  if (t.ops >= +$("#maxops").value) return;
+  const dir = decide(t.strat, t.closes); if (!dir) return;
+  if (mode === "demo") placeDemo(t, dir, c);
+  else { t.open = { dir, entry: c, left: t.dur, sim: true, at: hhmm() }; t.ops++; }
+}
+
+function settleSim(t, exitP) {
+  const o = t.open; t.open = null; t.cooldown = 1;
+  if (exitP === o.entry) return record(t, o, exitP, 0, null, "Simulada");
+  const win = o.dir === "up" ? exitP > o.entry : exitP < o.entry;
+  record(t, o, exitP, win ? stake() * SIM_PAYOUT : -stake(), win, "Simulada");
+}
+
+async function placeDemo(t, dir, ref) {
+  const amt = stake();
+  t.open = { dir, entry: ref, sending: true, at: hhmm() }; t.ops++;
+  try {
+    const p = await send({ proposal: 1, amount: amt, basis: "stake", contract_type: dir === "up" ? "CALL" : "PUT",
+      currency: account.currency, duration: t.dur, duration_unit: "m", underlying_symbol: t.symbol });
+    const b = (await send({ buy: p.proposal.id, price: amt })).buy;
+    t.open = { dir, entry: ref, id: b.contract_id, cost: b.buy_price, at: hhmm(), expiry: Date.now() + t.dur * 60000 };
+    send({ proposal_open_contract: 1, contract_id: b.contract_id, subscribe: 1 }).catch(() => {});
+  } catch (e) {
+    t.open = null; t.ops--; t.cooldown = 3;
+    say(`${first(t)} tentou entrar em ${t.asset} e a Deriv recusou: ${e.message}`);
+  }
+  scheduleRender();
+}
+
+function onContract(d) {
+  const c = d.proposal_open_contract; if (!c || !c.contract_id) return;
+  const t = traders.find(x => x.open && x.open.id === c.contract_id); if (!t) return;
+  if (c.entry_spot != null) t.open.entry = +c.entry_spot;
+  if (!c.is_sold) return;
+  if (d.subscription) send({ forget: d.subscription.id }).catch(() => {});
+  const o = t.open; t.open = null; t.cooldown = 1;
+  const profit = +c.profit, exitP = +(c.exit_spot ?? c.exit_tick ?? c.current_spot);
+  record(t, o, exitP, profit, c.status === "won" ? true : profit === 0 ? null : false, "Demo");
+}
+
+function record(t, o, exitP, result, win, kind) {
+  t.pnl += result;
+  if (win === true) { t.wins++; t.streak = t.streak > 0 ? t.streak + 1 : 1; }
+  else if (win === false) { t.losses++; t.streak = t.streak < 0 ? t.streak - 1 : -1; }
+  t.flash = win === null ? "tie" : win ? "win" : "loss"; t.flashUntil = Date.now() + 4000; t.flashAmt = result;
+  const el = document.getElementById("desk-" + t.id);
+  if (el && win !== null) { el.classList.remove("flash-win", "flash-loss"); void el.offsetWidth; el.classList.add(win ? "flash-win" : "flash-loss"); }
+  addLogRow({ at: hhmm(), t, dir: o.dir, kind, entry: o.entry, exit: exitP, result, win });
+  if (t.streak === 3 && win) say(`${first(t)} emendou 3 wins seguidos no ${t.asset}. É assim que se faz!`);
+  if (t.streak === 5 && win) say(`${first(t)} está imparável: 5 seguidos com ${STRATS[t.strat].name}!`);
+  if (t.streak === -3 && win === false) say(`${first(t)}, três losses seguidos. Respira e não força entrada no ${t.asset}.`);
+  const lead = ranking()[0];
+  if (lead.wins > 0 && lead.id !== lastLeader) { if (lastLeader) say(`Mudança no topo: ${first(lead)} assume a liderança com ${lead.wins} wins.`); lastLeader = lead.id; }
+  const lim = +$("#stoploss").value || 15;
+  if (!stopHit && teamPnl() <= -lim) { stopHit = true; say(`Stop da mesa atingido (${money(teamPnl())}). Ninguém abre nova operação neste expediente.`); }
+  renderBoard(); updateDetail(); renderAccount(); scheduleRender();
+}
+
+function say(text) {
+  const d = document.createElement("div"); d.className = "msg";
+  const tm = document.createElement("time"); tm.textContent = hhmm(); d.append(tm, document.createTextNode(text));
+  const f = $("#feed"); f.prepend(d); while (f.children.length > 40) f.lastChild.remove();
+}
+
+function newDay(n) {
+  day = { n, start: Date.now() }; dayEnded = false; stopHit = false; lastLeader = null;
+  for (const t of traders) { t.wins = t.losses = t.pnl = t.streak = t.ops = 0; }
+  $("#log").innerHTML = ""; $("#overlay").hidden = true;
+  if (n > 1) say(`Expediente ${n} aberto. Placar zerado, troféus mantidos.`);
+  renderAll();
+}
+function endDay() {
+  dayEnded = true;
+  const r = ranking(), w = r[0];
+  if (w.wins > 0) { trophies[w.id] = (trophies[w.id] || 0) + 1; store.set("deriv-trofeus", trophies); }
+  say(w.wins ? `Fim do expediente! ${w.name} vence com ${w.wins} wins. Resultado da mesa: ${money(teamPnl())}.` : "Fim do expediente sem wins. Amanhã tem mais.");
+  $("#o-title").textContent = w.wins ? w.name : "Sem vencedor";
+  $("#o-text").textContent = w.wins ? `${w.wins} wins no ${w.asset} com ${STRATS[w.strat].name}. Resultado da mesa: ${money(teamPnl())}. Operações ainda abertas terminam normalmente.` : "Ninguém fechou operação vencedora.";
+  $("#overlay").hidden = false; renderBoard();
+}
+
+/* ---------- Render ---------- */
+function setMode(m) {
+  mode = m; const p = $("#mode-pill");
+  p.className = "pill " + (m === "demo" ? "ok" : m === "sim" ? "warn" : "bad");
+  p.textContent = m === "demo" ? "Conta demo · ordens na Deriv" : m === "sim" ? "Simulação · preço ao vivo" : "Desconectado";
+  $("#floor-label").textContent = m === "demo" ? "Ordens na conta demo da Deriv · velas de 1 min ao vivo" : "Operações simuladas · velas de 1 min ao vivo";
+  renderAccount();
+}
+function renderAccount() {
+  $("#acct-id").textContent = account ? `${account.id} · conta demo` : mode === "sim" ? "Sem conta: modo simulação" : "Nenhuma conta conectada";
+  $("#acct-bal").textContent = account ? `${fmt(account.balance, 2)} ${account.currency}` : "—";
+  const tp = teamPnl(), el = $("#team-pnl"); el.textContent = money(tp); el.style.color = tp > 0 ? "var(--up)" : tp < 0 ? "var(--down)" : "";
+}
+function renderDesks() {
+  const box = $("#desks"); box.innerHTML = "";
+  for (const t of traders) {
+    const d = document.createElement("article");
+    d.className = "desk"; d.id = "desk-" + t.id; d.tabIndex = 0;
+    d.innerHTML = `<div class="monitor"><div class="monitor-top"><span class="sym"></span><span class="px"></span></div><canvas></canvas></div>
+      <div class="person"><div class="avatar" style="background:${t.color}">${t.ini}</div><div class="who"><b>${t.name}</b><span class="st"></span></div><div class="bubble"></div></div>
+      <div class="stats"><div class="stat"><b class="w"></b><span>Wins</span></div><div class="stat"><b class="l"></b><span>Loss</span></div><div class="stat"><b class="r"></b><span>Taxa</span></div><div class="stat"><b class="p"></b><span>Saldo</span></div></div>`;
+    d.querySelector(".sym").textContent = t.asset;
+    d.addEventListener("click", () => { selected = t.id; renderDetail(); updateDesks(); });
+    d.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); d.click(); } });
+    box.appendChild(d);
+  }
+  updateDesks();
+}
+function updateDesks() {
+  const top = ranking()[0], leadId = top.wins > 0 ? top.id : null, now = Date.now();
+  for (const t of traders) {
+    const d = document.getElementById("desk-" + t.id); if (!d) continue;
+    if (t.flash && now > t.flashUntil) t.flash = null;
+    d.classList.toggle("sel", t.id === selected);
+    d.classList.toggle("busy", mode !== "off" && t.ready && !t.open && !t.flash && entriesOn && !dayEnded && !stopHit);
+    d.querySelector(".px").textContent = t.live != null ? fmt(t.live, t.dec) : "—";
+    d.querySelector(".st").textContent = `${STRATS[t.strat].name} · ${t.dur} min`;
+    const b = d.querySelector(".bubble");
+    if (t.flash) { b.className = "bubble " + t.flash; b.textContent = t.flash === "tie" ? "EMPATE" : (t.flash === "win" ? "WIN " : "LOSS ") + money(t.flashAmt); }
+    else if (t.open) {
+      const up = t.open.dir === "up"; b.className = "bubble " + (up ? "up" : "down");
+      const left = t.open.sending ? "enviando" : t.open.sim ? t.open.left + " min" : Math.max(0, Math.ceil((t.open.expiry - now) / 1000)) + "s";
+      b.textContent = (up ? "▲ SOBE " : "▼ DESCE ") + left;
+    }
+    else if (mode === "off") { b.className = "bubble closed"; b.textContent = "desconectado"; }
+    else if (!t.ready) { b.className = "bubble closed"; b.textContent = t.isOpen ? "carregando…" : "mercado fechado"; }
+    else if (stopHit || dayEnded) { b.className = "bubble closed"; b.textContent = "parado"; }
+    else if (!entriesOn) { b.className = "bubble closed"; b.textContent = "em pausa"; }
+    else if (t.ops >= +$("#maxops").value) { b.className = "bubble closed"; b.textContent = "limite do dia"; }
+    else { b.className = "bubble"; b.textContent = "analisando…"; }
+    d.querySelector(".w").textContent = t.wins; d.querySelector(".l").textContent = t.losses;
+    d.querySelector(".r").textContent = t.wins + t.losses ? Math.round(rate(t) * 100) + "%" : "—";
+    const pe = d.querySelector(".p"); pe.textContent = money(t.pnl); pe.style.color = t.pnl > 0 ? "var(--up)" : t.pnl < 0 ? "var(--down)" : "";
+    let crown = d.querySelector(".crown");
+    if (t.id === leadId && !crown) { crown = document.createElement("span"); crown.className = "crown"; crown.textContent = "LÍDER"; d.appendChild(crown); }
+    if (t.id !== leadId && crown) crown.remove();
+    drawChart(d.querySelector("canvas"), t);
+  }
+}
+function drawChart(c, t) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const p = t.closes.slice(-(HIST - 1)); if (t.live != null) p.push(t.live);
+  if (p.length < 2) { g.fillStyle = "#8797a8"; g.font = "12px IBM Plex Mono, monospace"; g.fillText(mode === "off" ? "sem conexão" : "aguardando preços", 8, h / 2); return; }
+  let lo = Math.min(...p), hi = Math.max(...p);
+  if (t.open && t.open.entry != null) { lo = Math.min(lo, t.open.entry); hi = Math.max(hi, t.open.entry); }
+  const pad = (hi - lo) * 0.12 || hi * 0.0005; lo -= pad; hi += pad;
+  const X = i => i / (HIST - 1) * (w - 6), Y = v => h - (v - lo) / (hi - lo) * h;
+  g.strokeStyle = "rgba(135,151,168,.15)"; g.lineWidth = 1;
+  for (let k = 1; k < 4; k++) { g.beginPath(); g.moveTo(0, h * k / 4); g.lineTo(w, h * k / 4); g.stroke(); }
+  const up = p[p.length - 1] >= p[0], col = up ? "#3ccf8e" : "#ff6b6b";
+  g.beginPath(); p.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
+  g.strokeStyle = col; g.lineWidth = 1.6; g.stroke();
+  g.lineTo(X(p.length - 1), h); g.lineTo(0, h); g.closePath();
+  const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, up ? "rgba(60,207,142,.25)" : "rgba(255,107,107,.25)"); grd.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grd; g.fill();
+  if (t.open && t.open.entry != null) { const y = Y(t.open.entry); g.setLineDash([4, 3]); g.strokeStyle = t.open.dir === "up" ? "#3ccf8e" : "#ff6b6b"; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); g.setLineDash([]); }
+  g.fillStyle = col; g.beginPath(); g.arc(X(p.length - 1), Y(p[p.length - 1]), 3, 0, Math.PI * 2); g.fill();
+}
+function renderBoard() {
+  const r = ranking(), tb = $("#board"); tb.innerHTML = "";
+  r.forEach((t, i) => {
+    const tr = document.createElement("tr"); if (i === 0 && t.wins) tr.className = "lead";
+    tr.innerHTML = `<td>${i + 1}</td><td><span class="dot" style="background:${t.color}"></span>${first(t)} <span style="color:var(--muted);font-size:11px">${t.asset}</span></td>
+      <td>${t.wins}</td><td>${t.wins + t.losses ? Math.round(rate(t) * 100) + "%" : "—"}</td>
+      <td style="color:${t.pnl > 0 ? "var(--up)" : t.pnl < 0 ? "var(--down)" : "inherit"}">${money(t.pnl)}</td><td class="trophy">${trophies[t.id] || 0}</td>`;
+    tb.appendChild(tr);
+  });
+}
+function renderDetail() {
+  const t = traders.find(x => x.id === selected);
+  $("#d-name").innerHTML = `Mesa de ${first(t)} <span class="label">${t.symbol}</span>`;
+  $("#d-body").innerHTML = `
+    <div class="row"><span>Especialidade</span><b>${t.asset}</b></div>
+    <div class="row"><label for="strat-sel" style="color:var(--muted)">Estratégia</label>
+      <select id="strat-sel">${Object.entries(STRATS).map(([k, s]) => `<option value="${k}" ${k === t.strat ? "selected" : ""}>${s.name}</option>`).join("")}</select></div>
+    <p class="hint" id="strat-desc">${STRATS[t.strat].desc}</p>
+    <div class="row"><span>Expiração</span><b>${t.dur} min</b></div>
+    <div class="row"><span>Operações no expediente</span><b id="d-ops"></b></div>
+    <div class="row"><span>Sequência atual</span><b id="d-streak"></b></div>`;
+  $("#strat-sel").addEventListener("change", e => {
+    t.strat = e.target.value; savedStrats[t.id] = t.strat; store.set("deriv-estrategias", savedStrats);
+    $("#strat-desc").textContent = STRATS[t.strat].desc; say(`${first(t)} agora opera ${t.asset} com ${STRATS[t.strat].name}.`); updateDesks();
+  });
+  updateDetail();
+}
+function updateDetail() {
+  const t = traders.find(x => x.id === selected), el = $("#d-streak"); if (!el) return;
+  el.textContent = t.streak === 0 ? "—" : (t.streak > 0 ? t.streak + " win" : -t.streak + " loss") + (Math.abs(t.streak) > 1 ? "s" : "");
+  el.style.color = t.streak > 0 ? "var(--up)" : t.streak < 0 ? "var(--down)" : "";
+  $("#d-ops").textContent = `${t.ops} de ${$("#maxops").value}`;
+}
+function addLogRow(e) {
+  const tr = document.createElement("tr");
+  const res = e.win === null ? "EMPATE " + money(e.result) : (e.win ? "WIN " : "LOSS ") + money(e.result);
+  tr.innerHTML = `<td>${e.at}</td><td>${e.t.name}</td><td>${e.t.asset}</td><td class="dir-${e.dir}">${e.dir === "up" ? "▲ Sobe" : "▼ Desce"}</td><td>${e.kind}</td>
+    <td>${e.entry != null ? fmt(e.entry, e.t.dec) : "—"}</td><td>${isFinite(e.exit) ? fmt(e.exit, e.t.dec) : "—"}</td><td>${fmt(stake(), 2)}</td>
+    <td class="res-${e.win === null ? "tie" : e.win ? "win" : "loss"}">${res}</td>`;
+  const body = $("#log"); body.prepend(tr); while (body.children.length > 100) body.lastChild.remove();
+}
+function renderTop() {
+  const len = (+$("#daylen").value || 60) * 60000, el = Date.now() - day.start;
+  $("#day").textContent = day.n; $("#clock").textContent = hhmm();
+  $("#prog").style.width = Math.min(100, el / len * 100) + "%";
+  if (!dayEnded && mode !== "off" && el >= len) endDay();
+  if (mode === "off" && !dayEnded) day.start = Date.now(); // o expediente só corre conectado
+}
+function renderAll() { renderDesks(); renderBoard(); renderDetail(); renderAccount(); renderTop(); }
+let rq = false;
+function scheduleRender() { if (rq) return; rq = true; requestAnimationFrame(() => { rq = false; updateDesks(); }); }
+
+/* ---------- Controles ---------- */
+$("#conn-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const tok = $("#token").value.trim();
+  if (!tok) { $("#conn-err").textContent = "Cole o token da conta demo, ou use “Só simular”."; $("#conn-err").hidden = false; return; }
+  start(tok);
+});
+$("#sim-btn").addEventListener("click", () => start(null));
+$("#play").addEventListener("click", () => { entriesOn = !entriesOn; $("#play").textContent = entriesOn ? "Pausar entradas" : "Retomar entradas"; say(entriesOn ? "Entradas liberadas." : "Pausa nas entradas. Operações abertas seguem até o vencimento."); scheduleRender(); });
+$("#reset").addEventListener("click", () => newDay(day.n + 1));
+$("#o-next").addEventListener("click", () => newDay(day.n + 1));
+["#maxops", "#stake"].forEach(s => $(s).addEventListener("change", () => { updateDetail(); scheduleRender(); }));
+window.addEventListener("resize", scheduleRender);
+setInterval(() => { renderTop(); scheduleRender(); }, 1000);
+
+const saved = store.get("deriv-token", ""); $("#appid").value = store.get("deriv-appid", "");
+if (saved) { $("#token").value = saved; $("#remember").checked = true; }
+setMode("off"); renderAll();
+say("Bom dia, equipe! Conectem na Deriv e quem fechar o expediente com mais wins leva o troféu.");
+start(saved || null);
+})();
+</script>
+</body>
+
+</html>
